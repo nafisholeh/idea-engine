@@ -1,0 +1,13 @@
+spacy==3.7.2
+pandas==2.2.3
+nltk==3.9.1
+textblob==0.19.0
+scikit-learn==1.6.1
+sqlalchemy==2.0.38
+schedule==1.2.2
+praw==7.8.1
+requests==2.32.3
+certifi==2025.1.31
+urllib3==2.3.0
+PySocks==1.7.1
+en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz 

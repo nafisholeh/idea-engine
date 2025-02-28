@@ -1,0 +1,15 @@
+# To get these credentials:
+# 1. Go to https://www.reddit.com/prefs/apps
+# 2. Click "create another app..."
+# 3. Select "script" as the application type
+# 4. Fill in the name and description
+# 5. For redirect URI, use http://localhost:8080
+# 6. After creating, the client_id is the string under "personal use script"
+# 7. The client_secret is the longer string labeled "secret"
+
+[REDDIT]
+client_id = your_client_id
+client_secret = your_client_secret
+user_agent = script:reddit-insights-collector:v1.0 (by /u/your_username)
+username = your_username
+password = your_password 
