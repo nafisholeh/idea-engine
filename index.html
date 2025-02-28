@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reddit Insights Dashboard</title>
+    <style>
+        :root {
+            --primary-color: #0079d3;
+            --secondary-color: #ff4500;
+            --background-color: #f5f5f5;
+            --card-color: #ffffff;
+            --text-color: #1a1a1b;
+            --border-color: #edeff1;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+        }
+        
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .dashboard-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .search-box {
+            display: flex;
+            flex: 1;
+            min-width: 250px;
+        }
+        
+        input[type="text"] {
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px 0 0 4px;
+            width: 100%;
+        }
+        
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0 4px 4px 0;
+            cursor: pointer;
+        }
+        
+        .filter-controls {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        select {
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .topic-card {
+            background-color: var(--card-color);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            transition: transform 0.2s ease;
+        }
+        
+        .topic-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .topic-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .topic-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .topic-metrics {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.85rem;
+            color: #666;
+        }
+        
+        .metric {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        
+        .section-title {
+            font-weight: bold;
+            margin: 1rem 0 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.25rem;
+        }
+        
+        .tag {
+            display: inline-block;
+            background-color: #f0f0f0;
+            padding: 0.25rem 0.5rem;
+            border-radius: 16px;
+            font-size: 0.85rem;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .tag.pain-point {
+            background-color: #ffe0e0;
+            color: #d00000;
+        }
+        
+        .tag.solution {
+            background-color: #e0ffe0;
+            color: #008000;
+        }
+        
+        .tag.app-idea {
+            background-color: #e0e0ff;
+            color: #0000d0;
+        }
+        
+        .item-list {
+            margin-top: 0.5rem;
+        }
+        
+        .item {
+            background-color: #fafafa;
+            border-left: 3px solid var(--secondary-color);
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            border-radius: 0 4px 4px 0;
+        }
+        
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.25rem;
+        }
+        
+        .item-title {
+            font-weight: bold;
+        }
+        
+        .item-mentions {
+            font-size: 0.85rem;
+            color: #666;
+        }
+        
+        .item-text {
+            font-size: 0.95rem;
+        }
+        
+        .chart-container {
+            height: 200px;
+            margin-top: 1rem;
+        }
+        
+        .trend-chart {
+            display: flex;
+            align-items: flex-end;
+            height: 150px;
+            gap: 8px;
+        }
+        
+        .trend-bar {
+            background-color: var(--primary-color);
+            width: 30px;
+            border-radius: 4px 4px 0 0;
+            position: relative;
+        }
+        
+        .trend-date {
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.75rem;
+            color: #666;
+        }
+        
+        footer {
+            background-color: #333;
+            color: white;
+            text-align: center;
+            padding: 1rem;
+            margin-top: 2rem;
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .dashboard-controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">Reddit Insights Dashboard</div>
+        <div>Last updated: Feb 28, 2025</div>
+    </header>
+    
+    <div class="container">
+        <div class="dashboard-controls">
+            <div class="search-box">
+                <input type="text" placeholder="Search topics, keywords, or trends">
+                <button>Search</button>
+            </div>
+            <div class="filter-controls">
+                <select id="timeframe">
+                    <option value="7days">Last 7 days</option>
+                    <option value="30days" selected>Last 30 days</option>
+                    <option value="90days">Last 90 days</option>
+                    <option value="year">Last year</option>
+                </select>
+                <select id="category">
+                    <option value="all" selected>All Categories</option>
+                    <option value="tech">Technology</option>
+                    <option value="finance">Finance</option>
+                    <option value="health">Health & Wellness</option>
+                    <option value="productivity">Productivity</option>
+                    <option value="entertainment">Entertainment</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="dashboard-grid">
+            <!-- Tech Topic Card -->
+            <div class="topic-card">
+                <div class="topic-header">
+                    <div class="topic-title">AI Tools & Automation</div>
+                    <div class="topic-metrics">
+                        <div class="metric">
+                            <span>↑ 24%</span>
+                        </div>
+                        <div class="metric">
+                            <span>5.2K mentions</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section-title">Common Pain Points</div>
+                <div>
+                    <span class="tag pain-point">UX/UI Issues</span>
+                    <span class="tag pain-point">Learning Curve</span>
+                    <span class="tag pain-point">Integration</span>
+                </div>
+                <div class="item-list">
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">Overwhelmed by AI Tool Options</div>
+                            <div class="item-mentions">756 mentions</div>
+                        </div>
+                        <div class="item-text">"There are too many AI tools now and I can't figure out which ones are actually worth paying for."</div>
+                    </div>
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">Difficult to Integrate into Workflow</div>
+                            <div class="item-mentions">642 mentions</div>
+                        </div>
+                        <div class="item-text">"These AI tools are cool demos but I struggle to make them part of my daily workflow."</div>
+                    </div>
+                </div>
+                
+                <div class="section-title">Solution Requests</div>
+                <div>
+                    <span class="tag solution">Unified Platform</span>
+                    <span class="tag solution">Better Tutorials</span>
+                    <span class="tag solution">Templates</span>
+                </div>
+                <div class="item-list">
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">AI Tool Aggregator</div>
+                            <div class="item-mentions">489 mentions</div>
+                        </div>
+                        <div class="item-text">"I wish there was a single dashboard that connected all my AI tools with standardized inputs/outputs."</div>
+                    </div>
+                </div>
+                
+                <div class="section-title">App Ideas</div>
+                <div>
+                    <span class="tag app-idea">AI Hub</span>
+                    <span class="tag app-idea">Workflow Integrator</span>
+                    <span class="tag app-idea">Personalized AI</span>
+                </div>
+                <div class="item-list">
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">AI Tool Recommendation Engine</div>
+                            <div class="item-mentions">312 mentions</div>
+                        </div>
+                        <div class="item-text">"An app that analyzes your workflow and recommends the best AI tools specifically for your needs."</div>
+                    </div>
+                </div>
+                
+                <div class="section-title">Topic Trend</div>
+                <div class="trend-chart">
+                    <div class="trend-bar" style="height: 60%;">
+                        <div class="trend-date">Jan</div>
+                    </div>
+                    <div class="trend-bar" style="height: 65%;">
+                        <div class="trend-date">Feb</div>
+                    </div>
+                    <div class="trend-bar" style="height: 70%;">
+                        <div class="trend-date">Mar</div>
+                    </div>
+                    <div class="trend-bar" style="height: 75%;">
+                        <div class="trend-date">Apr</div>
+                    </div>
+                    <div class="trend-bar" style="height: 85%;">
+                        <div class="trend-date">May</div>
+                    </div>
+                    <div class="trend-bar" style="height: 100%;">
+                        <div class="trend-date">Jun</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Productivity Topic Card -->
+            <div class="topic-card">
+                <div class="topic-header">
+                    <div class="topic-title">Note-Taking & Personal Knowledge</div>
+                    <div class="topic-metrics">
+                        <div class="metric">
+                            <span>↑ 18%</span>
+                        </div>
+                        <div class="metric">
+                            <span>3.8K mentions</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section-title">Common Pain Points</div>
+                <div>
+                    <span class="tag pain-point">Information Overload</span>
+                    <span class="tag pain-point">Sync Issues</span>
+                    <span class="tag pain-point">Search Limitations</span>
+                </div>
+                <div class="item-list">
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">Note Retrieval Difficulties</div>
+                            <div class="item-mentions">528 mentions</div>
+                        </div>
+                        <div class="item-text">"I take all these notes but then can never find the specific information when I actually need it."</div>
+                    </div>
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">Platform Lock-in</div>
+                            <div class="item-mentions">415 mentions</div>
+                        </div>
+                        <div class="item-text">"I'm tired of having all my notes locked into a specific app with no easy way to export or transfer them."</div>
+                    </div>
+                </div>
+                
+                <div class="section-title">Solution Requests</div>
+                <div>
+                    <span class="tag solution">AI Assistance</span>
+                    <span class="tag solution">Cross-platform</span>
+                    <span class="tag solution">Open Standards</span>
+                </div>
+                <div class="item-list">
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">Smart Contextual Search</div>
+                            <div class="item-mentions">376 mentions</div>
+                        </div>
+                        <div class="item-text">"I need a note app that understands what I'm working on and proactively surfaces relevant notes."</div>
+                    </div>
+                </div>
+                
+                <div class="section-title">App Ideas</div>
+                <div>
+                    <span class="tag app-idea">Context-aware Notes</span>
+                    <span class="tag app-idea">Universal Importer</span>
+                    <span class="tag app-idea">AI Summarizer</span>
+                </div>
+                <div class="item-list">
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">Universal Note Converter & Migrator</div>
+                            <div class="item-mentions">283 mentions</div>
+                        </div>
+                        <div class="item-text">"An app that can import from any note-taking platform and convert to any other, preserving all formatting and attachments."</div>
+                    </div>
+                </div>
+                
+                <div class="section-title">Topic Trend</div>
+                <div class="trend-chart">
+                    <div class="trend-bar" style="height: 70%;">
+                        <div class="trend-date">Jan</div>
+                    </div>
+                    <div class="trend-bar" style="height: 65%;">
+                        <div class="trend-date">Feb</div>
+                    </div>
+                    <div class="trend-bar" style="height: 70%;">
+                        <div class="trend-date">Mar</div>
+                    </div>
+                    <div class="trend-bar" style="height: 80%;">
+                        <div class="trend-date">Apr</div>
+                    </div>
+                    <div class="trend-bar" style="height: 85%;">
+                        <div class="trend-date">May</div>
+                    </div>
+                    <div class="trend-bar" style="height: 95%;">
+                        <div class="trend-date">Jun</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Finance Topic Card -->
+            <div class="topic-card">
+                <div class="topic-header">
+                    <div class="topic-title">Personal Finance Management</div>
+                    <div class="topic-metrics">
+                        <div class="metric">
+                            <span>↑ 32%</span>
+                        </div>
+                        <div class="metric">
+                            <span>4.6K mentions</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section-title">Common Pain Points</div>
+                <div>
+                    <span class="tag pain-point">Account Syncing</span>
+                    <span class="tag pain-point">Visualization</span>
+                    <span class="tag pain-point">Forecasting</span>
+                </div>
+                <div class="item-list">
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">Inaccurate Categories</div>
+                            <div class="item-mentions">612 mentions</div>
+                        </div>
+                        <div class="item-text">"Finance apps constantly miscategorize my transactions and I waste too much time fixing them."</div>
+                    </div>
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">Lack of Forward Planning</div>
+                            <div class="item-mentions">584 mentions</div>
+                        </div>
+                        <div class="item-text">"I need a tool that helps me plan for future expenses, not just track past spending."</div>
+                    </div>
+                </div>
+                
+                <div class="section-title">Solution Requests</div>
+                <div>
+                    <span class="tag solution">Smart Categorization</span>
+                    <span class="tag solution">Predictive Analysis</span>
+                    <span class="tag solution">Privacy Focus</span>
+                </div>
+                <div class="item-list">
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">AI-Powered Financial Planning</div>
+                            <div class="item-mentions">429 mentions</div>
+                        </div>
+                        <div class="item-text">"I want an app that learns my spending patterns and gives practical advice for reaching my goals."</div>
+                    </div>
+                </div>
+                
+                <div class="section-title">App Ideas</div>
+                <div>
+                    <span class="tag app-idea">Smart Forecast</span>
+                    <span class="tag app-idea">Local-only Finance</span>
+                    <span class="tag app-idea">Goal Simulator</span>
+                </div>
+                <div class="item-list">
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">Financial Decision Simulator</div>
+                            <div class="item-mentions">347 mentions</div>
+                        </div>
+                        <div class="item-text">"An app where you can simulate major financial decisions and see how they affect your finances over 5, 10, or 20 years."</div>
+                    </div>
+                </div>
+                
+                <div class="section-title">Topic Trend</div>
+                <div class="trend-chart">
+                    <div class="trend-bar" style="height: 50%;">
+                        <div class="trend-date">Jan</div>
+                    </div>
+                    <div class="trend-bar" style="height: 60%;">
+                        <div class="trend-date">Feb</div>
+                    </div>
+                    <div class="trend-bar" style="height: 75%;">
+                        <div class="trend-date">Mar</div>
+                    </div>
+                    <div class="trend-bar" style="height: 80%;">
+                        <div class="trend-date">Apr</div>
+                    </div>
+                    <div class="trend-bar" style="height: 90%;">
+                        <div class="trend-date">May</div>
+                    </div>
+                    <div class="trend-bar" style="height: 100%;">
+                        <div class="trend-date">Jun</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Health Topic Card -->
+            <div class="topic-card">
+                <div class="topic-header">
+                    <div class="topic-title">Mental Health & Wellness</div>
+                    <div class="topic-metrics">
+                        <div class="metric">
+                            <span>↑ 42%</span>
+                        </div>
+                        <div class="metric">
+                            <span>6.3K mentions</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section-title">Common Pain Points</div>
+                <div>
+                    <span class="tag pain-point">Privacy Concerns</span>
+                    <span class="tag pain-point">Habit Formation</span>
+                    <span class="tag pain-point">Personalization</span>
+                </div>
+                <div class="item-list">
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">Generic Advice</div>
+                            <div class="item-mentions">721 mentions</div>
+                        </div>
+                        <div class="item-text">"Mental health apps give such generic advice that doesn't account for my specific situation."</div>
+                    </div>
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">Data Collection Concerns</div>
+                            <div class="item-mentions">678 mentions</div>
+                        </div>
+                        <div class="item-text">"I'm worried about sharing sensitive mental health data with these apps and how they might use it."</div>
+                    </div>
+                </div>
+                
+                <div class="section-title">Solution Requests</div>
+                <div>
+                    <span class="tag solution">Local Processing</span>
+                    <span class="tag solution">Personalized Plans</span>
+                    <span class="tag solution">Research-backed</span>
+                </div>
+                <div class="item-list">
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">Privacy-First Mental Health Tools</div>
+                            <div class="item-mentions">532 mentions</div>
+                        </div>
+                        <div class="item-text">"I need a mental wellness app where all my data stays on my device and isn't uploaded to some company's servers."</div>
+                    </div>
+                </div>
+                
+                <div class="section-title">App Ideas</div>
+                <div>
+                    <span class="tag app-idea">Offline-first</span>
+                    <span class="tag app-idea">Adaptive Guidance</span>
+                    <span class="tag app-idea">Community Support</span>
+                </div>
+                <div class="item-list">
+                    <div class="item">
+                        <div class="item-header">
+                            <div class="item-title">Adaptive Wellness Coach</div>
+                            <div class="item-mentions">387 mentions</div>
+                        </div>
+                        <div class="item-text">"An app that adjusts its approach based on what actually works for you, not just generic advice for everyone."</div>
+                    </div>
+                </div>
+                
+                <div class="section-title">Topic Trend</div>
+                <div class="trend-chart">
+                    <div class="trend-bar" style="height: 60%;">
+                        <div class="trend-date">Jan</div>
+                    </div>
+                    <div class="trend-bar" style="height: 65%;">
+                        <div class="trend-date">Feb</div>
+                    </div>
+                    <div class="trend-bar" style="height: 75%;">
+                        <div class="trend-date">Mar</div>
+                    </div>
+                    <div class="trend-bar" style="height: 85%;">
+                        <div class="trend-date">Apr</div>
+                    </div>
+                    <div class="trend-bar" style="height: 95%;">
+                        <div class="trend-date">May</div>
+                    </div>
+                    <div class="trend-bar" style="height: 100%;">
+                        <div class="trend-date">Jun</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <footer>
+        <p>Reddit Insights Dashboard | Data updated: February 28, 2025</p>
+        <p>Based on analysis of public Reddit discussions</p>
+    </footer>
+    
+    <script>
+        // Simple demonstration of interaction
+        document.querySelector('#timeframe').addEventListener('change', function() {
+            alert('In a full implementation, this would refresh data for the selected timeframe: ' + this.value);
+        });
+        
+        document.querySelector('#category').addEventListener('change', function() {
+            alert('In a full implementation, this would filter topics by category: ' + this.value);
+        });
+        
+        document.querySelector('button').addEventListener('click', function() {
+            const searchTerm = document.querySelector('input[type="text"]').value;
+            alert('In a full implementation, this would search for: ' + searchTerm);
+        });
+    </script>
+</body>
+</html>
