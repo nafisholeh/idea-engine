@@ -165,6 +165,102 @@ app.get('/api/topics/:category', (req, res) => {
   });
 });
 
+// Add new endpoint for top opportunities
+app.get('/api/opportunities', (req, res) => {
+  const minScore = req.query.minScore || 70; // Default minimum opportunity score
+  const limit = req.query.limit || 10;
+  
+  db.all(`
+    SELECT 
+      t.*,
+      json_extract(t.opportunity_scores, '$.total_score') as opportunity_score,
+      json_extract(t.opportunity_scores, '$.monetization_score') as monetization_score,
+      json_extract(t.opportunity_scores, '$.urgency_score') as urgency_score,
+      json_extract(t.opportunity_scores, '$.market_score') as market_score,
+      json_extract(t.opportunity_scores, '$.competition_score') as competition_score,
+      json_extract(t.opportunity_scores, '$.engagement_score') as engagement_score,
+      COALESCE(t.average_budget, 0) as potential_revenue
+    FROM reddit_topics t
+    WHERE json_extract(t.opportunity_scores, '$.total_score') >= ?
+    ORDER BY opportunity_score DESC, potential_revenue DESC
+    LIMIT ?
+  `, [minScore, limit], (err, rows) => {
+    if (err) {
+      console.error('Database error:', err.message);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    
+    const processedRows = rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      category: row.category,
+      opportunity_score: row.opportunity_score,
+      scores: {
+        monetization: row.monetization_score,
+        urgency: row.urgency_score,
+        market: row.market_score,
+        competition: row.competition_score,
+        engagement: row.engagement_score
+      },
+      potential_revenue: row.potential_revenue,
+      pain_points: JSON.parse(row.pain_points),
+      solution_requests: JSON.parse(row.solution_requests),
+      app_ideas: JSON.parse(row.app_ideas),
+      trend_data: JSON.parse(row.trend_data)
+    }));
+    
+    res.json(processedRows);
+  });
+});
+
+// Add endpoint for market analysis
+app.get('/api/market-analysis', (req, res) => {
+  db.all(`
+    SELECT 
+      category,
+      COUNT(*) as topic_count,
+      AVG(json_extract(opportunity_scores, '$.total_score')) as avg_opportunity_score,
+      AVG(COALESCE(average_budget, 0)) as avg_budget,
+      SUM(mention_count) as total_mentions,
+      AVG(growth_percentage) as avg_growth
+    FROM reddit_topics
+    GROUP BY category
+    ORDER BY avg_opportunity_score DESC
+  `, [], (err, rows) => {
+    if (err) {
+      console.error('Database error:', err.message);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    
+    res.json(rows);
+  });
+});
+
+// Add endpoint for competitor analysis
+app.get('/api/competitor-analysis/:topic', (req, res) => {
+  const topic = req.params.topic;
+  
+  db.all(`
+    SELECT 
+      name as competitor,
+      mention_count,
+      json_extract(opportunity_scores, '$.competition_score') as market_presence,
+      json_extract(pain_points, '$[*].text') as weaknesses
+    FROM reddit_topics
+    WHERE category = (
+      SELECT category FROM reddit_topics WHERE name = ?
+    )
+    ORDER BY mention_count DESC
+  `, [topic], (err, rows) => {
+    if (err) {
+      console.error('Database error:', err.message);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    
+    res.json(rows);
+  });
+});
+
 // Helper function to filter trend data by days
 function filterTrendDataByDays(trendData, days) {
   const cutoffDate = new Date();

@@ -213,6 +213,29 @@ class RedditInsightCollector:
             'create', 'build', 'develop', 'make', 'startup', 'project', 'product', 
             'would be cool if', 'imagine if', 'what if', 'thinking about', 'considering'
         ]
+        
+        # Additional metrics for opportunity scoring
+        self.monetization_keywords = [
+            'subscription', 'paid', 'premium', 'enterprise', 'business', 'pricing',
+            'monthly', 'annually', 'license', 'commercial', 'professional',
+            'saas', 'b2b', 'roi', 'revenue', 'profit', 'market'
+        ]
+        
+        self.urgency_keywords = [
+            'need', 'urgent', 'asap', 'immediately', 'looking for',
+            'help', 'frustrated', 'annoying', 'waste of time', 'inefficient',
+            'manual', 'tedious', 'time-consuming', 'expensive'
+        ]
+        
+        self.market_size_indicators = [
+            'everyone', 'all companies', 'industry standard', 'widely used',
+            'enterprise', 'small business', 'startup', 'scale', 'growing market'
+        ]
+        
+        self.competition_keywords = [
+            'alternative to', 'better than', 'versus', 'vs',
+            'switch from', 'migrate from', 'replace', 'competitor'
+        ]
     
     def collect_data(self, time_period='week'):
         """Collect posts and comments from specified subreddits over a given time period."""
@@ -605,6 +628,84 @@ class RedditInsightCollector:
         while True:
             schedule.run_pending()
             time.sleep(60)
+
+    def analyze_opportunity_score(self, text, upvotes, comment_count):
+        # Calculate monetization potential (0-100)
+        monetization_score = sum(1 for kw in self.monetization_keywords if kw in text.lower()) * 20
+        monetization_score = min(100, monetization_score)
+        
+        # Calculate urgency score (0-100)
+        urgency_score = sum(1 for kw in self.urgency_keywords if kw in text.lower()) * 20
+        urgency_score = min(100, urgency_score)
+        
+        # Calculate market size score (0-100)
+        market_score = sum(1 for kw in self.market_size_indicators if kw in text.lower()) * 25
+        market_score = min(100, market_score)
+        
+        # Calculate competition score (inverse: less competition is better)
+        competition_score = 100 - (sum(1 for kw in self.competition_keywords if kw in text.lower()) * 25)
+        competition_score = max(0, competition_score)
+        
+        # Calculate engagement score based on upvotes and comments
+        engagement_score = min(100, (upvotes + comment_count * 2) / 10)
+        
+        # Calculate weighted opportunity score
+        weights = {
+            'monetization': 0.3,
+            'urgency': 0.2,
+            'market_size': 0.2,
+            'competition': 0.15,
+            'engagement': 0.15
+        }
+        
+        opportunity_score = (
+            monetization_score * weights['monetization'] +
+            urgency_score * weights['urgency'] +
+            market_score * weights['market_size'] +
+            competition_score * weights['competition'] +
+            engagement_score * weights['engagement']
+        )
+        
+        return {
+            'total_score': opportunity_score,
+            'monetization_score': monetization_score,
+            'urgency_score': urgency_score,
+            'market_score': market_score,
+            'competition_score': competition_score,
+            'engagement_score': engagement_score
+        }
+
+    def extract_budget_mentions(self, text):
+        # Extract mentions of budgets, prices, or willingness to pay
+        budget_pattern = r'\$\d+(?:,\d{3})*(?:\.\d{2})?|\d+(?:,\d{3})*\s*(?:dollars|USD)'
+        budgets = re.findall(budget_pattern, text)
+        return [float(re.sub(r'[^\d.]', '', b)) for b in budgets]
+
+    def analyze_post(self, post):
+        # ... existing analysis code ...
+        
+        # Add opportunity scoring
+        opportunity_scores = self.analyze_opportunity_score(
+            post.selftext + ' ' + post.title,
+            post.score,
+            len(post.comments)
+        )
+        
+        # Extract budget information
+        mentioned_budgets = self.extract_budget_mentions(post.selftext + ' ' + post.title)
+        avg_budget = sum(mentioned_budgets) / len(mentioned_budgets) if mentioned_budgets else 0
+        
+        return {
+            'id': post.id,
+            'title': post.title,
+            'content': post.selftext,
+            'score': post.score,
+            'comment_count': len(post.comments),
+            'opportunity_scores': opportunity_scores,
+            'mentioned_budgets': mentioned_budgets,
+            'average_budget': avg_budget,
+            # ... existing return fields ...
+        }
 
 # Generate sample config.ini file (this would be separate in production)
 def generate_sample_config():
