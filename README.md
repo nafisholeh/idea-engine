@@ -42,6 +42,14 @@ node server.js
 
 6. Access the dashboard at `http://localhost:3000`
 
+## Development
+
+### SSH Configuration
+For development, it's recommended to use SSH authentication with GitHub:
+1. Generate an SSH key pair: `ssh-keygen -t ed25519 -C "your.email@example.com"`
+2. Add the public key to your GitHub account
+3. Test the connection: `ssh -T git@github.com`
+
 ## Project Structure
 
 - `DataCrawler.py`: Reddit data collection and analysis
