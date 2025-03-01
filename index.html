@@ -303,6 +303,111 @@
             height: 300px;
             width: 100%;
         }
+        
+        .market-analysis-section {
+            margin: 2rem 0;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        
+        .chart-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .chart-card h3 {
+            margin: 0 0 1rem 0;
+            color: var(--primary-color);
+        }
+        
+        .metric-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 16px;
+            font-size: 0.85rem;
+            margin-right: 0.5rem;
+            font-weight: bold;
+        }
+        
+        .metric-high {
+            background-color: #e0ffe0;
+            color: #008000;
+        }
+        
+        .metric-medium {
+            background-color: #fff3e0;
+            color: #f57c00;
+        }
+        
+        .metric-low {
+            background-color: #ffe0e0;
+            color: #d00000;
+        }
+        
+        .opportunity-metrics {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .metric-group {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .metric-label {
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .implementation-timeline {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .timeline-bar {
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            margin: 0.5rem 0;
+            position: relative;
+        }
+        
+        .timeline-progress {
+            height: 100%;
+            background: var(--primary-color);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        .timeline-marker {
+            position: absolute;
+            top: -20px;
+            transform: translateX(-50%);
+            font-size: 0.8rem;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -708,6 +813,28 @@
         </div>
     </div>
     
+    <div class="market-analysis-section">
+        <h2>Market Analysis</h2>
+        <div class="chart-grid">
+            <div class="chart-card">
+                <h3>Category Distribution</h3>
+                <canvas id="categoryDistribution"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>Opportunity Matrix</h3>
+                <canvas id="opportunityMatrix"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>Revenue Potential</h3>
+                <canvas id="revenuePotential"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>Implementation Complexity</h3>
+                <canvas id="complexityChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
     <footer>
         <p>Reddit Insights Dashboard | Data updated: February 28, 2025</p>
         <p>Based on analysis of public Reddit discussions</p>
@@ -727,6 +854,120 @@
             const searchTerm = document.querySelector('input[type="text"]').value;
             alert('In a full implementation, this would search for: ' + searchTerm);
         });
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+    // Initialize charts
+    document.addEventListener('DOMContentLoaded', function() {
+        // Category Distribution Chart
+        const ctxCategory = document.getElementById('categoryDistribution').getContext('2d');
+        new Chart(ctxCategory, {
+            type: 'doughnut',
+            data: {
+                labels: ['Tech', 'Productivity', 'Finance', 'Health', 'Entertainment'],
+                datasets: [{
+                    data: [30, 25, 20, 15, 10],
+                    backgroundColor: [
+                        '#4e79a7',
+                        '#f28e2c',
+                        '#e15759',
+                        '#76b7b2',
+                        '#59a14f'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    }
+                }
+            }
+        });
+
+        // Opportunity Matrix
+        const ctxMatrix = document.getElementById('opportunityMatrix').getContext('2d');
+        new Chart(ctxMatrix, {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Opportunities',
+                    data: [
+                        {x: 80, y: 65, r: 15, label: 'AI Tools'},
+                        {x: 60, y: 85, r: 12, label: 'Note Taking'},
+                        {x: 75, y: 45, r: 10, label: 'Finance Apps'}
+                    ],
+                    backgroundColor: 'rgba(78, 121, 167, 0.5)'
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Market Size'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Competition Level'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Revenue Potential Chart
+        const ctxRevenue = document.getElementById('revenuePotential').getContext('2d');
+        new Chart(ctxRevenue, {
+            type: 'bar',
+            data: {
+                labels: ['Enterprise', 'SMB', 'Consumer'],
+                datasets: [{
+                    label: 'Potential Revenue ($K)',
+                    data: [150, 80, 40],
+                    backgroundColor: '#4e79a7'
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Implementation Complexity Chart
+        const ctxComplexity = document.getElementById('complexityChart').getContext('2d');
+        new Chart(ctxComplexity, {
+            type: 'radar',
+            data: {
+                labels: ['Technical', 'Integration', 'Regulatory', 'Infrastructure'],
+                datasets: [{
+                    label: 'Complexity Score',
+                    data: [80, 60, 40, 70],
+                    backgroundColor: 'rgba(78, 121, 167, 0.2)',
+                    borderColor: '#4e79a7',
+                    pointBackgroundColor: '#4e79a7'
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    r: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+    });
     </script>
 </body>
 </html>
