@@ -107,7 +107,9 @@ app.get('/api/trending', (req, res) => {
       name: row.name,
       category: row.category,
       mention_count: row.mention_count,
-      growth_percentage: row.growth_percentage
+      growth_percentage: row.growth_percentage,
+      trend_data: JSON.parse(row.trend_data || '[]'),
+      opportunity_scores: row.opportunity_scores ? JSON.parse(row.opportunity_scores) : null
     }));
     
     res.json(processedRows);
