@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reddit Insights Dashboard</title>
+    <link rel="stylesheet" href="/css/filters.css">
     <style>
         :root {
             --primary-color: #0079d3;
@@ -840,22 +841,7 @@
         <p>Based on analysis of public Reddit discussions</p>
     </footer>
     
-    <script>
-        // Simple demonstration of interaction
-        document.querySelector('#timeframe').addEventListener('change', function() {
-            alert('In a full implementation, this would refresh data for the selected timeframe: ' + this.value);
-        });
-        
-        document.querySelector('#category').addEventListener('change', function() {
-            alert('In a full implementation, this would filter topics by category: ' + this.value);
-        });
-        
-        document.querySelector('button').addEventListener('click', function() {
-            const searchTerm = document.querySelector('input[type="text"]').value;
-            alert('In a full implementation, this would search for: ' + searchTerm);
-        });
-    </script>
-    
+    <script src="/js/filters.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
     // Initialize charts
