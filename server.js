@@ -4,6 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
 
 // Initialize express app
 const app = express();
@@ -13,25 +14,33 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Ensure data directory exists
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir);
+}
+
 // Connect to SQLite database
-const db = new sqlite3.Database('./reddit_insights.db', (err) => {
+const dbPath = path.resolve(__dirname, 'data', 'redditradar.db');
+console.log('Database path:', dbPath);
+
+if (!fs.existsSync(dbPath)) {
+  console.error('Database file does not exist at:', dbPath);
+  process.exit(1);
+}
+
+const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE, (err) => {
   if (err) {
     console.error('Error connecting to database:', err.message);
-  } else {
-    console.log('Connected to the RedditRadar database.');
-    
-    // Initialize database schema
-    const fs = require('fs');
-    const initSQL = fs.readFileSync('./schema.sql', 'utf-8');
-    
-    db.exec(initSQL, (err) => {
-      if (err) {
-        console.error('Error initializing database schema:', err.message);
-      } else {
-        console.log('Database schema initialized successfully.');
-      }
-    });
+    process.exit(1);
   }
+  console.log('Connected to the RedditRadar database.');
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 // API Routes
@@ -40,29 +49,32 @@ app.get('/api/test', (req, res) => {
 });
 
 app.get('/api/topics', (req, res) => {
+  console.log('Received request for topics with query:', req.query);
+  
   const { category, timeframe, search } = req.query;
   
   let query = `
     SELECT 
-      t.id,
-      t.title,
-      t.category,
-      t.growth_rate as growthRate,
-      t.mention_count,
-      t.last_updated
-    FROM topics t
+      id,
+      name as title,
+      category,
+      growth_percentage as growth_rate,
+      mention_count,
+      updated_at as last_updated,
+      opportunity_scores
+    FROM reddit_topics
   `;
   
   const params = [];
   const conditions = [];
   
   if (category && category !== 'all') {
-    conditions.push('t.category = ?');
+    conditions.push('category = ?');
     params.push(category);
   }
   
   if (search) {
-    conditions.push('(t.title LIKE ? OR t.category LIKE ?)');
+    conditions.push('(name LIKE ? OR category LIKE ?)');
     params.push(`%${search}%`, `%${search}%`);
   }
   
@@ -70,14 +82,30 @@ app.get('/api/topics', (req, res) => {
     query += ' WHERE ' + conditions.join(' AND ');
   }
   
-  query += ' ORDER BY t.mention_count DESC';
+  query += ' ORDER BY mention_count DESC';
+  
+  console.log('Executing query:', query);
+  console.log('With parameters:', params);
   
   db.all(query, params, (err, topics) => {
     if (err) {
       console.error('Database error:', err);
-      return res.status(500).json({ error: 'Failed to fetch topics' });
+      return res.status(500).json({ error: 'Failed to fetch topics: ' + err.message });
     }
-    res.json(topics);
+    
+    try {
+      // Parse opportunity_scores JSON for each topic
+      topics = topics.map(topic => ({
+        ...topic,
+        opportunity_scores: JSON.parse(topic.opportunity_scores || '{}')
+      }));
+      
+      console.log('Found topics:', topics?.length || 0);
+      res.json(topics || []);
+    } catch (error) {
+      console.error('Error parsing topic data:', error);
+      res.status(500).json({ error: 'Failed to parse topic data' });
+    }
   });
 });
 
@@ -85,12 +113,12 @@ app.get('/api/topics/trending', (req, res) => {
   const query = `
     SELECT 
       id,
-      title,
+      name as title,
       category,
-      growth_rate as growthRate
-    FROM topics
-    WHERE growth_rate > 30
-    ORDER BY growth_rate DESC
+      growth_percentage as growth_rate
+    FROM reddit_topics
+    WHERE growth_percentage > 30
+    ORDER BY growth_percentage DESC
     LIMIT 5
   `;
   
@@ -112,35 +140,18 @@ app.get('/api/topics/:id', (req, res) => {
   
   const query = `
     SELECT 
-      t.id,
-      t.title,
-      t.category,
-      t.growth_rate as growthRate,
-      t.mention_count,
-      t.last_updated,
-      json_group_array(DISTINCT json_object(
-        'date', td.date,
-        'mentions', td.mentions
-      )) as trend_data,
-      json_group_array(DISTINCT json_object(
-        'text', p.description,
-        'mention_count', p.mention_count
-      )) as pain_points,
-      json_group_array(DISTINCT json_object(
-        'text', s.description,
-        'mention_count', s.mention_count
-      )) as solution_requests,
-      json_group_array(DISTINCT json_object(
-        'text', a.description,
-        'mention_count', a.mention_count
-      )) as app_ideas
-    FROM topics t
-    LEFT JOIN trend_data td ON t.id = td.topic_id
-    LEFT JOIN pain_points p ON t.id = p.topic_id
-    LEFT JOIN solution_requests s ON t.id = s.topic_id
-    LEFT JOIN app_ideas a ON t.id = a.topic_id
-    WHERE t.id = ?
-    GROUP BY t.id
+      id,
+      name as title,
+      category,
+      growth_percentage as growth_rate,
+      mention_count,
+      updated_at as last_updated,
+      trend_data,
+      pain_points,
+      solution_requests,
+      app_ideas
+    FROM reddit_topics
+    WHERE id = ?
   `;
   
   db.get(query, [topicId], (err, topic) => {
@@ -159,12 +170,6 @@ app.get('/api/topics/:id', (req, res) => {
       topic.pain_points = JSON.parse(topic.pain_points);
       topic.solution_requests = JSON.parse(topic.solution_requests);
       topic.app_ideas = JSON.parse(topic.app_ideas);
-      
-      // Remove any null entries that might have been created by LEFT JOINs
-      topic.trend_data = topic.trend_data.filter(item => item.date !== null);
-      topic.pain_points = topic.pain_points.filter(item => item.text !== null);
-      topic.solution_requests = topic.solution_requests.filter(item => item.text !== null);
-      topic.app_ideas = topic.app_ideas.filter(item => item.text !== null);
     } catch (parseError) {
       console.error('Error parsing JSON data:', parseError);
       return res.status(500).json({ error: 'Failed to parse topic data' });
@@ -178,10 +183,10 @@ app.get('/api/dashboard/stats', (req, res) => {
   const query = `
     SELECT 
       COUNT(DISTINCT id) as totalTopics,
-      COUNT(DISTINCT CASE WHEN growth_rate > 30 THEN id END) as trendingTopics,
+      COUNT(DISTINCT CASE WHEN growth_percentage > 30 THEN id END) as trendingTopics,
       COUNT(DISTINCT category) as totalCategories,
-      AVG(growth_rate) as averageGrowthRate
-    FROM topics
+      AVG(growth_percentage) as averageGrowthRate
+    FROM reddit_topics
   `;
   
   db.get(query, [], (err, stats) => {
@@ -201,7 +206,7 @@ app.get('/api/dashboard/stats', (req, res) => {
 app.get('/api/categories', (req, res) => {
   const query = `
     SELECT DISTINCT category
-    FROM topics
+    FROM reddit_topics
     ORDER BY category
   `;
   
@@ -219,7 +224,7 @@ app.get('/api/market-analysis', (req, res) => {
     SELECT 
       category,
       COUNT(*) as count
-    FROM topics
+    FROM reddit_topics
     GROUP BY category
     ORDER BY count DESC
     LIMIT 5
@@ -227,22 +232,26 @@ app.get('/api/market-analysis', (req, res) => {
   
   const growthTrendsQuery = `
     SELECT 
-      strftime('%m', date) as month,
-      AVG(growth_rate) as growth
-    FROM trend_data td
-    JOIN topics t ON td.topic_id = t.id
-    WHERE date >= date('now', '-6 months')
-    GROUP BY month
-    ORDER BY month
+      json_group_array(json_object(
+        'month', substr(json_extract(value, '$.month'), 6),
+        'growth', json_extract(value, '$.mentions')
+      )) as trends
+    FROM reddit_topics,
+    json_each(trend_data)
+    WHERE json_valid(trend_data)
+    GROUP BY substr(json_extract(value, '$.month'), 1, 7)
+    ORDER BY substr(json_extract(value, '$.month'), 1, 7) DESC
+    LIMIT 6
   `;
   
   const painPointsQuery = `
     SELECT 
-      t.category,
-      COUNT(p.id) as painPoints
-    FROM topics t
-    LEFT JOIN pain_points p ON t.id = p.topic_id
-    GROUP BY t.category
+      category,
+      COUNT(json_extract(value, '$.text')) as painPoints
+    FROM reddit_topics,
+    json_each(pain_points)
+    WHERE json_valid(pain_points)
+    GROUP BY category
     ORDER BY painPoints DESC
     LIMIT 5
   `;
@@ -267,9 +276,9 @@ app.get('/api/market-analysis', (req, res) => {
         
         res.json({
           categoryDistribution,
-          growthTrends: growthTrends.map(trend => ({
-            month: new Date(2024, parseInt(trend.month) - 1).toLocaleString('default', { month: 'short' }),
-            growth: parseFloat(trend.growth.toFixed(1))
+          growthTrends: JSON.parse(growthTrends[0]?.trends || '[]').map(trend => ({
+            month: new Date(2024, parseInt(trend.month.split('-')[1]) - 1).toLocaleString('default', { month: 'short' }),
+            growth: parseFloat(trend.growth)
           })),
           painPointsByCategory
         });
