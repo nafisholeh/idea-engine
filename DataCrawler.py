@@ -16,6 +16,11 @@ import certifi
 import base64
 import socks
 import socket
+import praw
+from textblob import TextBlob
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.decomposition import LatentDirichletAllocation
+import numpy as np
 
 # Configure SOCKS proxy for Tor
 socks.set_default_proxy(socks.SOCKS5, "localhost", 9150)
@@ -27,6 +32,230 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
+class DataCrawler:
+    def __init__(self):
+        self.setup_logging()
+        self.ensure_data_directory()
+        self.initialize_database()
+        self.load_reddit_config()
+        
+        # Frustration keywords for sentiment analysis
+        self.frustration_keywords = [
+            'hate', 'annoying', 'struggling', 'difficult', 'frustrated', 
+            'tired of', 'sick of', 'pain point', 'problem', 'issue',
+            'challenge', 'headache', 'nightmare', 'waste', 'inefficient'
+        ]
+        
+        # Initialize topic modeling
+        self.vectorizer = CountVectorizer(
+            max_df=0.95, min_df=2, stop_words='english'
+        )
+        self.lda = LatentDirichletAllocation(
+            n_components=5, random_state=42
+        )
+
+    def analyze_sentiment(self, text: str) -> Dict[str, float]:
+        """Analyze sentiment and frustration levels in text."""
+        blob = TextBlob(text.lower())
+        
+        # Calculate base sentiment
+        sentiment = blob.sentiment.polarity
+        
+        # Calculate frustration score
+        frustration_score = sum(
+            1 for keyword in self.frustration_keywords 
+            if keyword in text.lower()
+        ) / len(self.frustration_keywords)
+        
+        # Calculate urgency based on time-related words and exclamation marks
+        urgency_words = ['asap', 'urgent', 'immediately', 'critical', 'emergency']
+        urgency_score = (
+            sum(1 for word in urgency_words if word in text.lower()) +
+            text.count('!')
+        ) / (len(urgency_words) + 1)
+        
+        # Calculate impact based on mentions of scale/importance
+        impact_words = ['everyone', 'all', 'major', 'significant', 'huge']
+        impact_score = sum(1 for word in impact_words if word in text.lower()) / len(impact_words)
+        
+        return {
+            "frustration": min(frustration_score, 1.0),
+            "urgency": min(urgency_score, 1.0),
+            "impact": min(impact_score, 1.0)
+        }
+
+    def extract_topic_clusters(self, texts: List[str]) -> List[Dict[str, Any]]:
+        """Use LDA to identify topic clusters in the texts."""
+        if not texts:
+            return []
+            
+        # Prepare the document-term matrix
+        dtm = self.vectorizer.fit_transform(texts)
+        
+        # Fit LDA model
+        lda_output = self.lda.fit_transform(dtm)
+        
+        # Get feature names (words)
+        feature_names = self.vectorizer.get_feature_names_out()
+        
+        # Extract topics
+        topics = []
+        for topic_idx, topic in enumerate(self.lda.components_):
+            top_words = [
+                feature_names[i] 
+                for i in topic.argsort()[:-10 - 1:-1]
+            ]
+            topics.append({
+                "id": topic_idx,
+                "words": top_words,
+                "weight": float(np.mean(lda_output[:, topic_idx]))
+            })
+        
+        return topics
+
+    def collect_engagement_metrics(self, submission) -> Dict[str, int]:
+        """Collect engagement metrics from a Reddit submission."""
+        return {
+            "upvotes": submission.score,
+            "comments": submission.num_comments,
+            "unique_users": len(set(
+                comment.author.name 
+                for comment in submission.comments.list()
+                if hasattr(comment, 'author') and comment.author
+            ))
+        }
+
+    def process_subreddit_data(self, subreddit_name: str):
+        """Process data from a subreddit with enhanced analysis."""
+        try:
+            subreddit = self.reddit.subreddit(subreddit_name)
+            topics_data = defaultdict(lambda: {
+                'mention_count': 0,
+                'pain_points': [],
+                'solution_requests': [],
+                'app_ideas': [],
+                'trend_data': [],
+                'sentiment_scores': {"frustration": 0, "urgency": 0, "impact": 0},
+                'engagement_metrics': {"upvotes": 0, "comments": 0, "unique_users": 0}
+            })
+
+            for submission in subreddit.hot(limit=100):
+                # Skip if too old
+                if (datetime.utcnow() - datetime.fromtimestamp(submission.created_utc)) > timedelta(days=30):
+                    continue
+
+                # Analyze title and body
+                text = f"{submission.title} {submission.selftext}"
+                extracted_topics = self.extract_potential_topics(text)
+                
+                for topic in extracted_topics:
+                    topic_data = topics_data[topic]
+                    
+                    # Update mention count
+                    topic_data['mention_count'] += 1
+                    
+                    # Analyze sentiment
+                    sentiment = self.analyze_sentiment(text)
+                    for key in sentiment:
+                        topic_data['sentiment_scores'][key] = max(
+                            topic_data['sentiment_scores'][key],
+                            sentiment[key]
+                        )
+                    
+                    # Collect engagement metrics
+                    engagement = self.collect_engagement_metrics(submission)
+                    for key in engagement:
+                        topic_data['engagement_metrics'][key] += engagement[key]
+                    
+                    # Extract pain points and other data
+                    pain_points = self.extract_pain_points(text)
+                    if pain_points:
+                        topic_data['pain_points'].extend(pain_points)
+                    
+                    solutions = self.extract_solution_requests(text)
+                    if solutions:
+                        topic_data['solution_requests'].extend(solutions)
+                    
+                    app_ideas = self.extract_app_ideas(text)
+                    if app_ideas:
+                        topic_data['app_ideas'].extend(app_ideas)
+
+            # Process topic clusters for each topic
+            for topic_name, data in topics_data.items():
+                all_texts = [
+                    point['text'] for point in 
+                    data['pain_points'] + data['solution_requests'] + data['app_ideas']
+                ]
+                data['topic_clusters'] = self.extract_topic_clusters(all_texts)
+
+            # Update database
+            self.update_database(topics_data)
+            
+        except Exception as e:
+            logging.error(f"Error processing subreddit {subreddit_name}: {str(e)}")
+
+    def update_database(self, topics_data: Dict[str, Dict[str, Any]]):
+        """Update database with the collected and analyzed data."""
+        try:
+            for topic_name, data in topics_data.items():
+                cursor = self.db.cursor()
+                
+                # Check if topic exists
+                cursor.execute(
+                    "SELECT id FROM reddit_topics WHERE name = ?", 
+                    (topic_name,)
+                )
+                result = cursor.fetchone()
+                
+                if result:
+                    # Update existing topic
+                    cursor.execute("""
+                        UPDATE reddit_topics 
+                        SET mention_count = ?,
+                            pain_points = ?,
+                            solution_requests = ?,
+                            app_ideas = ?,
+                            sentiment_scores = ?,
+                            topic_clusters = ?,
+                            engagement_metrics = ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    """, (
+                        data['mention_count'],
+                        json.dumps(data['pain_points']),
+                        json.dumps(data['solution_requests']),
+                        json.dumps(data['app_ideas']),
+                        json.dumps(data['sentiment_scores']),
+                        json.dumps(data['topic_clusters']),
+                        json.dumps(data['engagement_metrics']),
+                        result[0]
+                    ))
+                else:
+                    # Insert new topic
+                    cursor.execute("""
+                        INSERT INTO reddit_topics (
+                            name, category, mention_count,
+                            pain_points, solution_requests, app_ideas,
+                            sentiment_scores, topic_clusters, engagement_metrics
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        topic_name,
+                        self.categorize_topic(topic_name),
+                        data['mention_count'],
+                        json.dumps(data['pain_points']),
+                        json.dumps(data['solution_requests']),
+                        json.dumps(data['app_ideas']),
+                        json.dumps(data['sentiment_scores']),
+                        json.dumps(data['topic_clusters']),
+                        json.dumps(data['engagement_metrics'])
+                    ))
+                
+                self.db.commit()
+                
+        except Exception as e:
+            logging.error(f"Error updating database: {str(e)}")
+            self.db.rollback()
 
 def load_reddit_config() -> Dict[str, Any]:
     """Load Reddit API credentials from config file"""
