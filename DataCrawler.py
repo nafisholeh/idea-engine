@@ -129,9 +129,11 @@ class DataCrawler:
         saas_keywords = r'(app|platform|software|tool|solution|system|service|automation|management|analytics)'
         
         # Pattern to match potential SaaS topics
-        pattern = rf'\b\w+(?:\s+\w+)*\s+{saas_keywords}\b'
+        pattern = r'(\b\w+(?:\s+\w+)*)\s+(' + saas_keywords + r')\b'
         
-        topics = re.findall(pattern, text.lower())
+        matches = re.findall(pattern, text.lower())
+        # Extract the topic name from the match tuples and combine with the keyword
+        topics = [f"{match[0]} {match[1]}" for match in matches]
         return list(set(topics))
 
     def extract_pain_points(self, text: str) -> List[Dict[str, Any]]:
@@ -348,18 +350,27 @@ class DataCrawler:
             })
         
         return topics
-
+    
     def collect_engagement_metrics(self, submission) -> Dict[str, int]:
         """Collect engagement metrics from a Reddit submission."""
-        return {
-            "upvotes": submission.score,
-            "comments": submission.num_comments,
-            "unique_users": len(set(
-                comment.author.name 
-                for comment in submission.comments.list()
-                if hasattr(comment, 'author') and comment.author
-            ))
-        }
+        try:
+            unique_users = set()
+            for comment in submission.comments.list():
+                if hasattr(comment, 'author') and comment.author:
+                    unique_users.add(comment.author.name)
+            
+            return {
+                "upvotes": submission.score,
+                "comments": submission.num_comments,
+                "unique_users": len(unique_users)
+            }
+        except Exception as e:
+            logging.warning(f"Error collecting engagement metrics: {e}")
+            return {
+                "upvotes": submission.score,
+                "comments": submission.num_comments,
+                "unique_users": 0
+            }
 
     def update_database(self, topics_data: Dict[str, Dict[str, Any]]):
         """Update database with the collected and analyzed data."""
@@ -418,8 +429,8 @@ class DataCrawler:
                     ))
                 
                 self.db.commit()
-                
-            except Exception as e:
+            
+        except Exception as e:
             logging.error(f"Error updating database: {str(e)}")
             self.db.rollback()
 
