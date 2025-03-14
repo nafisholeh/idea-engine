@@ -195,10 +195,10 @@ app.get('/api/dashboard/stats', (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch dashboard stats' });
     }
     res.json({
-      totalTopics: stats.totalTopics,
-      trendingTopics: stats.trendingTopics,
-      totalCategories: stats.totalCategories,
-      averageGrowthRate: parseFloat(stats.averageGrowthRate.toFixed(1))
+      totalTopics: stats.totalTopics || 0,
+      trendingTopics: stats.trendingTopics || 0,
+      totalCategories: stats.totalCategories || 0,
+      averageGrowthRate: stats.averageGrowthRate ? parseFloat(stats.averageGrowthRate.toFixed(1)) : 0
     });
   });
 });
