@@ -117,47 +117,55 @@ const AppIdeasComponent: React.FC<AppIdeasComponentProps> = ({
           {sortedAppIdeas.map((idea, index) => (
             <React.Fragment key={index}>
               {index > 0 && <Divider component="li" />}
-              <ListItem 
-                alignItems="flex-start"
-                button={!!onSelectIdea}
-                onClick={() => onSelectIdea && onSelectIdea(idea)}
-              >
-                <ListItemText
-                  primary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <LightbulbOutlinedIcon color="primary" />
-                      <Typography variant="subtitle1">
-                        {idea.title || idea.text}
-                      </Typography>
-                    </Box>
-                  }
-                  secondary={
-                    <>
-                      {idea.description && (
-                        <Typography
-                          component="span"
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{ display: 'block', mb: 1 }}
-                        >
-                          {idea.description}
+              {onSelectIdea ? (
+                <ListItem 
+                  alignItems="flex-start"
+                  button
+                  onClick={() => onSelectIdea(idea)}
+                >
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <LightbulbOutlinedIcon color="primary" />
+                        <Typography variant="subtitle1">
+                          {idea.title || idea.text}
                         </Typography>
-                      )}
-                      {showCount && (
-                        <Chip
-                          label={`${idea.count || 0} mentions`}
-                          size="small"
-                          sx={{ 
-                            backgroundColor: theme.palette.primary.light,
-                            color: theme.palette.primary.contrastText,
-                            fontSize: '0.75rem'
-                          }}
-                        />
-                      )}
-                    </>
-                  }
-                />
-              </ListItem>
+                      </Box>
+                    }
+                    secondary={idea.description || idea.text}
+                  />
+                  {showCount && (
+                    <Chip 
+                      label={`${idea.count} mentions`} 
+                      size="small" 
+                      color="primary" 
+                      variant="outlined" 
+                    />
+                  )}
+                </ListItem>
+              ) : (
+                <ListItem alignItems="flex-start">
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <LightbulbOutlinedIcon color="primary" />
+                        <Typography variant="subtitle1">
+                          {idea.title || idea.text}
+                        </Typography>
+                      </Box>
+                    }
+                    secondary={idea.description || idea.text}
+                  />
+                  {showCount && (
+                    <Chip 
+                      label={`${idea.count} mentions`} 
+                      size="small" 
+                      color="primary" 
+                      variant="outlined" 
+                    />
+                  )}
+                </ListItem>
+              )}
             </React.Fragment>
           ))}
           {sortedAppIdeas.length === 0 && (

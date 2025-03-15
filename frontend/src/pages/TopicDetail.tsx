@@ -229,10 +229,10 @@ const TopicDetail: React.FC = () => {
               />
               <Chip
                 icon={<TrendingUpIcon />}
-                label={`${topic.growth_rate || topic.growth_percentage || 0}% Growth`}
+                label={`${topic.growthRate || topic.growth_percentage || 0}% Growth`}
                 color={
-                  (topic.growth_rate || topic.growth_percentage || 0) > 50 ? 'success' :
-                  (topic.growth_rate || topic.growth_percentage || 0) > 20 ? 'info' : 'default'
+                  (topic.growthRate || topic.growth_percentage || 0) > 50 ? 'success' :
+                  (topic.growthRate || topic.growth_percentage || 0) > 20 ? 'info' : 'default'
                 }
               />
             </Box>
