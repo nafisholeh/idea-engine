@@ -16,7 +16,9 @@ import {
   Alert,
   Card,
   CardContent,
-  useTheme
+  useTheme,
+  Tabs,
+  Tab
 } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -32,8 +34,13 @@ import {
   Tooltip,
   Legend
 } from 'chart.js';
-import { RedditTopic } from '../types';
+import { RedditTopic, AppIdea } from '../types';
 import { getTopicById } from '../services/api';
+
+// Import our new components
+import PainPointsComponent from '../components/PainPointsComponent';
+import SolutionRequestsComponent from '../components/SolutionRequestsComponent';
+import AppIdeasComponent from '../components/AppIdeasComponent';
 
 // Register ChartJS components
 ChartJS.register(
@@ -46,91 +53,92 @@ ChartJS.register(
   Legend
 );
 
+// Tab panel component
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`topic-tabpanel-${index}`}
+      aria-labelledby={`topic-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ p: 3 }}>
+          {children}
+        </Box>
+      )}
+    </div>
+  );
+}
+
 const TopicDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [topic, setTopic] = useState<RedditTopic | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [tabValue, setTabValue] = useState(0);
+  const [selectedIdea, setSelectedIdea] = useState<AppIdea | null>(null);
   const theme = useTheme();
 
   useEffect(() => {
     const fetchTopic = async () => {
-      if (!id) return;
-      
       try {
         setLoading(true);
-        const topicData = await getTopicById(parseInt(id));
+        const topicData = await getTopicById(id || '');
         setTopic(topicData);
         setLoading(false);
       } catch (err) {
-        console.error("Error fetching topic details:", err);
-        setError("Failed to load topic details. Please try again later.");
+        console.error('Error fetching topic:', err);
+        setError('Failed to load topic details. Please try again later.');
         setLoading(false);
       }
     };
 
-    fetchTopic();
+    if (id) {
+      fetchTopic();
+    }
   }, [id]);
 
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue);
+  };
+
+  const handleSelectIdea = (idea: AppIdea) => {
+    setSelectedIdea(idea);
+  };
+
   const formatCategoryName = (category: string): string => {
-    return category.charAt(0).toUpperCase() + category.slice(1).replace(/_/g, ' ');
-  };
-
-  // Prepare chart data
-  const chartData = {
-    labels: topic?.trend_data?.map(point => point.date) || [],
-    datasets: [
-      {
-        label: 'Mentions',
-        data: topic?.trend_data?.map(point => point.mentions) || [],
-        fill: false,
-        backgroundColor: theme.palette.primary.main,
-        borderColor: theme.palette.primary.main,
-      }
-    ]
-  };
-
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top' as const,
-      },
-      title: {
-        display: true,
-        text: 'Mention Trend Over Time',
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        title: {
-          display: true,
-          text: 'Number of Mentions'
-        }
-      },
-      x: {
-        title: {
-          display: true,
-          text: 'Date'
-        }
-      }
-    }
+    return category
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   };
 
   if (loading) {
     return (
-      <Container sx={{ py: 4, textAlign: 'center' }}>
-        <CircularProgress />
-        <Typography variant="h6" sx={{ mt: 2 }}>Loading topic details...</Typography>
+      <Container maxWidth="lg">
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+          <CircularProgress />
+        </Box>
       </Container>
     );
   }
 
-  if (error || !topic) {
+  if (error) {
     return (
-      <Container sx={{ py: 4 }}>
-        <Alert severity="error">{error || "Topic not found"}</Alert>
+      <Container maxWidth="lg">
+        <Alert severity="error" sx={{ my: 2 }}>
+          {error}
+        </Alert>
         <Button
           component={Link}
           to="/topics"
@@ -143,187 +151,179 @@ const TopicDetail: React.FC = () => {
     );
   }
 
+  if (!topic) {
+    return (
+      <Container maxWidth="lg">
+        <Alert severity="warning" sx={{ my: 2 }}>
+          Topic not found.
+        </Alert>
+        <Button
+          component={Link}
+          to="/topics"
+          startIcon={<ArrowBackIcon />}
+          sx={{ mt: 2 }}
+        >
+          Back to Topics
+        </Button>
+      </Container>
+    );
+  }
+
+  // Prepare chart data
+  const chartData = {
+    labels: topic.trend_data?.map(point => {
+      const date = new Date(point.month);
+      return date.toLocaleString('default', { month: 'short', year: '2-digit' });
+    }) || [],
+    datasets: [
+      {
+        label: 'Mentions',
+        data: topic.trend_data?.map(point => point.mentions) || [],
+        borderColor: theme.palette.primary.main,
+        backgroundColor: theme.palette.primary.light,
+        tension: 0.3,
+      },
+    ],
+  };
+
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      title: {
+        display: true,
+        text: 'Trend Over Time',
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+      },
+    },
+  };
+
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth="lg">
       <Button
         component={Link}
         to="/topics"
         startIcon={<ArrowBackIcon />}
-        sx={{ mb: 3 }}
+        sx={{ mb: 2 }}
       >
         Back to Topics
       </Button>
 
-      <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={8}>
-            <Typography variant="h4" component="h1" gutterBottom>
-              {topic.name}
+      <Paper sx={{ p: 3, mb: 4, borderRadius: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+          <Box>
+            <Typography variant="h4" gutterBottom>
+              {topic.title}
             </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
               <Chip 
                 label={formatCategoryName(topic.category)} 
-                sx={{ mr: 2 }} 
+                color="primary" 
+                variant="outlined" 
               />
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <TrendingUpIcon color="success" sx={{ mr: 0.5 }} />
-                <Typography variant="body1" color="success.main">
-                  {topic.growth_percentage}% Growth
-                </Typography>
-              </Box>
+              <Chip
+                icon={<TrendingUpIcon />}
+                label={`${topic.growth_rate || topic.growth_percentage || 0}% Growth`}
+                color={
+                  (topic.growth_rate || topic.growth_percentage || 0) > 50 ? 'success' :
+                  (topic.growth_rate || topic.growth_percentage || 0) > 20 ? 'info' : 'default'
+                }
+              />
             </Box>
-            <Typography variant="body1" paragraph>
-              This topic has been mentioned {topic.mention_count?.toLocaleString() || '0'} times in Reddit discussions.
+          </Box>
+          <Box>
+            <Typography variant="body2" color="text.secondary">
+              Last updated: {new Date(topic.last_updated || Date.now()).toLocaleDateString()}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Last updated: {topic.last_updated ? new Date(topic.last_updated).toLocaleDateString() : 'Unknown'}
+              Mentions: {topic.mention_count || 0}
             </Typography>
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <Card sx={{ height: '100%', bgcolor: 'primary.light', color: 'primary.contrastText' }}>
-              <CardContent>
-                <Typography variant="h5" gutterBottom>
-                  Opportunity Score
-                </Typography>
-                <Typography variant="h3" component="div">
-                  {topic.opportunity_scores?.total_score || topic.opportunity_score || 'N/A'}
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 1 }}>
-                  {((topic.opportunity_scores?.total_score || topic.opportunity_score || 0) >= 80)
-                    ? 'High potential opportunity' 
-                    : ((topic.opportunity_scores?.total_score || topic.opportunity_score || 0) >= 60)
-                    ? 'Moderate potential opportunity'
-                    : 'Lower potential opportunity'}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
+
+        <Divider sx={{ my: 2 }} />
+
+        <Box sx={{ height: 300, mb: 4 }}>
+          <Line options={chartOptions} data={chartData} />
+        </Box>
+
+        <Box sx={{ width: '100%' }}>
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs value={tabValue} onChange={handleTabChange} aria-label="topic detail tabs">
+              <Tab label="Pain Points" />
+              <Tab label="Solution Requests" />
+              <Tab label="App Ideas" />
+            </Tabs>
+          </Box>
+          <TabPanel value={tabValue} index={0}>
+            <PainPointsComponent 
+              painPoints={topic.pain_points || []} 
+              variant="detailed"
+              title="User Pain Points"
+            />
+          </TabPanel>
+          <TabPanel value={tabValue} index={1}>
+            <SolutionRequestsComponent 
+              solutionRequests={topic.solution_requests || []} 
+              variant="detailed"
+              title="User Solution Requests"
+            />
+          </TabPanel>
+          <TabPanel value={tabValue} index={2}>
+            {selectedIdea ? (
+              <Box>
+                <Button 
+                  onClick={() => setSelectedIdea(null)}
+                  startIcon={<ArrowBackIcon />}
+                  sx={{ mb: 2 }}
+                >
+                  Back to Ideas
+                </Button>
+                <Card variant="outlined" sx={{ mb: 3 }}>
+                  <CardContent>
+                    <Typography variant="h5" gutterBottom>
+                      {selectedIdea.title || selectedIdea.text}
+                    </Typography>
+                    {selectedIdea.description && (
+                      <Typography variant="body1" paragraph>
+                        {selectedIdea.description}
+                      </Typography>
+                    )}
+                    <Chip
+                      icon={<LightbulbOutlinedIcon />}
+                      label={`${selectedIdea.count || 0} mentions`}
+                      color="primary"
+                    />
+                  </CardContent>
+                </Card>
+                <Box sx={{ mt: 4 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Related Pain Points
+                  </Typography>
+                  <PainPointsComponent 
+                    painPoints={topic.pain_points?.slice(0, 3) || []} 
+                    variant="compact"
+                    title=""
+                  />
+                </Box>
+              </Box>
+            ) : (
+              <AppIdeasComponent 
+                appIdeas={topic.app_ideas || []} 
+                variant="detailed"
+                title="Potential SaaS App Ideas"
+                onSelectIdea={handleSelectIdea}
+              />
+            )}
+          </TabPanel>
+        </Box>
       </Paper>
-
-      <Grid container spacing={4}>
-        <Grid item xs={12} md={8}>
-          <Paper elevation={2} sx={{ p: 3, mb: 4 }}>
-            <Typography variant="h5" gutterBottom>
-              Mention Trend
-            </Typography>
-            <Box sx={{ height: 300 }}>
-              <Line options={chartOptions} data={chartData} />
-            </Box>
-          </Paper>
-
-          <Paper elevation={2} sx={{ p: 3, mb: 4 }}>
-            <Typography variant="h5" gutterBottom>
-              Pain Points
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-            {(topic.pain_points && topic.pain_points.length > 0) ? (
-              <List>
-                {topic.pain_points.map((point, index) => (
-                  <ListItem key={index} divider={index < (topic.pain_points?.length || 0) - 1}>
-                    <ListItemText
-                      primary={point.description || point.text}
-                      secondary={`Mentioned ${point.mention_count || point.count} times`}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <Typography variant="body1" color="text.secondary">
-                No pain points identified for this topic.
-              </Typography>
-            )}
-          </Paper>
-
-          <Paper elevation={2} sx={{ p: 3 }}>
-            <Typography variant="h5" gutterBottom>
-              Solution Requests
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-            {(topic.solution_requests && topic.solution_requests.length > 0) ? (
-              <List>
-                {topic.solution_requests.map((request, index) => (
-                  <ListItem key={index} divider={index < (topic.solution_requests?.length || 0) - 1}>
-                    <ListItemText
-                      primary={request.description || request.text}
-                      secondary={`Requested ${request.mention_count || request.count} times`}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <Typography variant="body1" color="text.secondary">
-                No solution requests identified for this topic.
-              </Typography>
-            )}
-          </Paper>
-        </Grid>
-
-        <Grid item xs={12} md={4}>
-          <Paper elevation={2} sx={{ p: 3, mb: 4 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <LightbulbOutlinedIcon color="warning" sx={{ mr: 1 }} />
-              <Typography variant="h5">
-                App Ideas
-              </Typography>
-            </Box>
-            <Divider sx={{ mb: 2 }} />
-            {(topic.app_ideas && topic.app_ideas.length > 0) ? (
-              <List>
-                {topic.app_ideas.map((idea, index) => (
-                  <ListItem key={index} divider={index < (topic.app_ideas?.length || 0) - 1}>
-                    <ListItemText
-                      primary={idea.title}
-                      secondary={idea.description}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <Typography variant="body1" color="text.secondary">
-                No app ideas generated for this topic yet.
-              </Typography>
-            )}
-            <Button 
-              component={Link}
-              to="/submit-idea"
-              variant="contained" 
-              color="primary"
-              fullWidth
-              sx={{ mt: 2 }}
-            >
-              Submit Your Idea
-            </Button>
-          </Paper>
-
-          <Paper elevation={2} sx={{ p: 3 }}>
-            <Typography variant="h5" gutterBottom>
-              Related Topics
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-            <List>
-              <ListItem>
-                <ListItemText
-                  primary="Data Visualization"
-                  secondary="85% growth rate"
-                />
-              </ListItem>
-              <ListItem>
-                <ListItemText
-                  primary="API Integration"
-                  secondary="72% growth rate"
-                />
-              </ListItem>
-              <ListItem>
-                <ListItemText
-                  primary="User Authentication"
-                  secondary="65% growth rate"
-                />
-              </ListItem>
-            </List>
-          </Paper>
-        </Grid>
-      </Grid>
     </Container>
   );
 };

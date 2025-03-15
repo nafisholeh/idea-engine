@@ -14,6 +14,7 @@ import NotFound from './pages/NotFound';
 import IdeaSubmission from './pages/IdeaSubmission';
 import OpportunityFinder from './pages/OpportunityFinder';
 import MarketAnalysis from './pages/MarketAnalysis';
+import TextAnalysisPage from './pages/TextAnalysisPage';
 
 // Create a theme
 const theme = createTheme({
@@ -77,6 +78,7 @@ function App() {
             <Route path="/topics/:id" element={<TopicDetail />} />
             <Route path="/opportunities" element={<OpportunityFinder />} />
             <Route path="/submit-idea" element={<IdeaSubmission />} />
+            <Route path="/text-analysis" element={<TextAnalysisPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
