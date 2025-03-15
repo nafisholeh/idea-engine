@@ -1,300 +1,406 @@
 import React, { useState, useEffect } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Container,
-  Typography,
   Grid,
-  Paper,
-  Box,
+  Typography,
   Card,
   CardContent,
-  CardActions,
+  Box,
+  Chip,
   Button,
-  Divider,
   CircularProgress,
   Alert,
-  Chip
+  Paper,
+  Divider,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Tabs,
+  Tab,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import BarChartIcon from '@mui/icons-material/BarChart';
-import ExploreIcon from '@mui/icons-material/Explore';
-import LightbulbOutlinedIcon from '@mui/icons-material/LightbulbOutlined';
+import CategoryIcon from '@mui/icons-material/Category';
+import ShowChartIcon from '@mui/icons-material/ShowChart';
+import PieChartIcon from '@mui/icons-material/PieChart';
+import { getDashboardStats, getTopTrendingTopics, getTopicById } from '../services/api';
 import { DashboardStats, RedditTopic } from '../types';
-import { getDashboardStats, getTopTrendingTopics, testApiConnection } from '../services/api';
+import PainPointsComponent from '../components/PainPointsComponent';
+import SolutionRequestsComponent from '../components/SolutionRequestsComponent';
+import AppIdeasComponent from '../components/AppIdeasComponent';
+
+// Interface for the tab panel props
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+// Tab Panel component
+const TabPanel = (props: TabPanelProps) => {
+  const { children, value, index, ...other } = props;
+
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`topic-tabpanel-${index}`}
+      aria-labelledby={`topic-tab-${index}`}
+      {...other}
+    >
+      {value === index && (
+        <Box sx={{ p: 2 }}>
+          {children}
+        </Box>
+      )}
+    </div>
+  );
+};
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  
+  // State for dashboard data
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [trendingTopics, setTrendingTopics] = useState<RedditTopic[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // State for expanded topic details
+  const [expandedTopics, setExpandedTopics] = useState<Record<number, boolean>>({});
+  const [topicDetails, setTopicDetails] = useState<Record<number, RedditTopic>>({});
+  const [loadingTopics, setLoadingTopics] = useState<Record<number, boolean>>({});
+  const [tabValues, setTabValues] = useState<Record<number, number>>({});
 
+  // Fetch dashboard data on component mount
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchDashboardData = async () => {
       try {
-        // Test API connection first
-        try {
-          const testResult = await testApiConnection();
-          console.log('API connection test result:', testResult);
-        } catch (testError) {
-          console.error('API connection test failed:', testError);
-        }
-
         setLoading(true);
         const [statsData, topicsData] = await Promise.all([
           getDashboardStats(),
-          getTopTrendingTopics()
+          getTopTrendingTopics(10)
         ]);
-        
         setStats(statsData);
         setTrendingTopics(topicsData);
-        setLoading(false);
+        setError(null);
       } catch (err) {
-        setError("Failed to fetch dashboard data. Please try again later.");
+        console.error('Error fetching dashboard data:', err);
+        setError('Failed to load dashboard data. Please try again later.');
+      } finally {
         setLoading(false);
-        console.error("Dashboard data fetch error:", err);
       }
     };
 
-    fetchData();
+    fetchDashboardData();
   }, []);
 
-  const formatCategoryName = (category: string): string => {
-    return category.charAt(0).toUpperCase() + category.slice(1).replace(/-/g, ' ');
+  // Handle topic expansion
+  const handleTopicExpand = async (topicId: number) => {
+    const isExpanded = expandedTopics[topicId] || false;
+    
+    // Update expanded state
+    setExpandedTopics({
+      ...expandedTopics,
+      [topicId]: !isExpanded
+    });
+    
+    // Initialize tab value if not set
+    if (tabValues[topicId] === undefined) {
+      setTabValues({
+        ...tabValues,
+        [topicId]: 0
+      });
+    }
+    
+    // Fetch topic details if expanding and not already loaded
+    if (!isExpanded && !topicDetails[topicId]) {
+      try {
+        setLoadingTopics({
+          ...loadingTopics,
+          [topicId]: true
+        });
+        
+        const topicData = await getTopicById(topicId);
+        
+        setTopicDetails({
+          ...topicDetails,
+          [topicId]: topicData
+        });
+      } catch (err) {
+        console.error(`Error fetching details for topic ${topicId}:`, err);
+        setError(`Failed to load details for this topic. Please try again later.`);
+      } finally {
+        setLoadingTopics({
+          ...loadingTopics,
+          [topicId]: false
+        });
+      }
+    }
+  };
+
+  // Handle tab change
+  const handleTabChange = (topicId: number, newValue: number) => {
+    setTabValues({
+      ...tabValues,
+      [topicId]: newValue
+    });
+  };
+
+  // Navigate to topic detail page
+  const handleViewFullDetails = (topicId: number) => {
+    navigate(`/topics/${topicId}`);
   };
 
   if (loading) {
     return (
-      <Container sx={{ py: 4, textAlign: 'center' }}>
+      <Container sx={{ mt: 4, textAlign: 'center' }}>
         <CircularProgress />
-        <Typography variant="h6" sx={{ mt: 2 }}>Loading dashboard data...</Typography>
+        <Typography variant="body1" sx={{ mt: 2 }}>
+          Loading dashboard data...
+        </Typography>
       </Container>
     );
   }
 
-  if (error || !stats) {
+  if (error) {
     return (
-      <Container sx={{ py: 4 }}>
-        <Alert severity="error">{error || "Failed to load dashboard"}</Alert>
+      <Container sx={{ mt: 4 }}>
+        <Alert severity="error">{error}</Alert>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Idea Engine Dashboard
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Discover trending topics, pain points, and SaaS opportunities from Reddit discussions
-        </Typography>
-      </Box>
-
-      {/* Stats Cards */}
+    <Container maxWidth="xl" sx={{ mt: 4, mb: 8 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Idea Engine Dashboard
+      </Typography>
+      
+      {/* Stats Overview */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <Paper elevation={2} sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <Typography variant="h3" component="div" color="primary.main">
-              {stats.totalTopics || stats.total_topics || 0}
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              Tracked Topics
-            </Typography>
-          </Paper>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Paper elevation={2} sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <Typography variant="h3" component="div" color="primary.main">
-              {(stats.total_mentions ? stats.total_mentions.toLocaleString() : '0')}
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              Total Mentions
-            </Typography>
-          </Paper>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Paper elevation={2} sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Typography variant="h3" component="div" color="success.main">
-                {stats.averageGrowthRate || stats.avg_growth || 0}%
-              </Typography>
-              <TrendingUpIcon color="success" sx={{ ml: 1, fontSize: 28 }} />
-            </Box>
-            <Typography variant="body1" color="text.secondary">
-              Average Growth
-            </Typography>
-          </Paper>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Paper elevation={2} sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <Typography variant="h3" component="div" color="primary.main">
-              {stats.totalCategories || (stats.top_categories && stats.top_categories.length) || 0}
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
-              Categories
-            </Typography>
-          </Paper>
-        </Grid>
-      </Grid>
-
-      {/* Quick Access Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%' }}>
+          <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <ExploreIcon color="primary" sx={{ mr: 1 }} />
-                <Typography variant="h6">Topic Explorer</Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                Browse all tracked topics and their insights
+              <Typography color="textSecondary" gutterBottom>
+                Total Topics
               </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <PieChartIcon color="primary" sx={{ mr: 1 }} />
+                <Typography variant="h5" component="div">
+                  {stats?.totalTopics || stats?.total_topics || 0}
+                </Typography>
+              </Box>
             </CardContent>
-            <CardActions>
-              <Button 
-                component={RouterLink} 
-                to="/topics" 
-                size="small" 
-                fullWidth
-              >
-                Explore Topics
-              </Button>
-            </CardActions>
           </Card>
         </Grid>
+        
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%' }}>
+          <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <BarChartIcon color="primary" sx={{ mr: 1 }} />
-                <Typography variant="h6">Market Analysis</Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                View market trends and category distribution
+              <Typography color="textSecondary" gutterBottom>
+                Trending Topics
               </Typography>
-            </CardContent>
-            <CardActions>
-              <Button 
-                component={RouterLink} 
-                to="/market-analysis" 
-                size="small" 
-                fullWidth
-              >
-                View Analysis
-              </Button>
-            </CardActions>
-          </Card>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <TrendingUpIcon color="primary" sx={{ mr: 1 }} />
-                <Typography variant="h6">Opportunity Finder</Typography>
+                <Typography variant="h5" component="div">
+                  {stats?.trendingTopics || 0}
+                </Typography>
               </Box>
-              <Typography variant="body2" color="text.secondary">
-                Discover high-potential SaaS opportunities
-              </Typography>
             </CardContent>
-            <CardActions>
-              <Button 
-                component={RouterLink} 
-                to="/opportunities" 
-                size="small" 
-                fullWidth
-              >
-                Find Opportunities
-              </Button>
-            </CardActions>
           </Card>
         </Grid>
+        
         <Grid item xs={12} sm={6} md={3}>
-          <Card sx={{ height: '100%' }}>
+          <Card>
             <CardContent>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                <LightbulbOutlinedIcon color="primary" sx={{ mr: 1 }} />
-                <Typography variant="h6">Submit Idea</Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                Submit your own SaaS idea for validation
+              <Typography color="textSecondary" gutterBottom>
+                Categories
               </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <CategoryIcon color="primary" sx={{ mr: 1 }} />
+                <Typography variant="h5" component="div">
+                  {stats?.totalCategories || 0}
+                </Typography>
+              </Box>
             </CardContent>
-            <CardActions>
-              <Button 
-                component={RouterLink} 
-                to="/submit-idea" 
-                size="small" 
-                fullWidth
-              >
-                Submit Idea
-              </Button>
-            </CardActions>
+          </Card>
+        </Grid>
+        
+        <Grid item xs={12} sm={6} md={3}>
+          <Card>
+            <CardContent>
+              <Typography color="textSecondary" gutterBottom>
+                Avg. Growth Rate
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <ShowChartIcon color="primary" sx={{ mr: 1 }} />
+                <Typography variant="h5" component="div">
+                  {stats?.averageGrowthRate || stats?.avg_growth || 0}%
+                </Typography>
+              </Box>
+            </CardContent>
           </Card>
         </Grid>
       </Grid>
-
-      {/* Trending Topics */}
-      <Box sx={{ mb: 4 }}>
+      
+      {/* Trending Topics with Detailed Information */}
+      <Paper sx={{ p: 3, mb: 4 }}>
         <Typography variant="h5" component="h2" gutterBottom>
-          Top Trending Topics
+          Trending Topics with Insights
         </Typography>
+        <Typography variant="body2" color="textSecondary" paragraph>
+          Explore trending topics with their pain points, solution requests, and app ideas all in one place.
+          Click on a topic to expand and see detailed information.
+        </Typography>
+        
         <Divider sx={{ mb: 3 }} />
-        <Grid container spacing={3}>
-          {trendingTopics.map((topic) => (
-            <Grid item xs={12} sm={6} md={3} key={topic.id}>
-              <Card sx={{ height: '100%' }}>
-                <CardContent>
-                  <Typography variant="h6" component="div" gutterBottom noWrap>
-                    {topic.name || topic.title}
-                  </Typography>
-                  <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                    <Chip 
-                      label={formatCategoryName(topic.category)} 
-                      color="primary" 
-                      size="small" 
-                    />
-                    {topic.opportunity_scores?.total_score && (
-                      <Chip
-                        label={`Score: ${topic.opportunity_scores.total_score}`}
-                        color={topic.opportunity_scores.total_score > 80 ? "success" : "default"}
-                        size="small"
-                      />
-                    )}
-                    {topic.opportunity_score && (
-                      <Chip
-                        label={`Score: ${topic.opportunity_score}`}
-                        color={topic.opportunity_score > 80 ? "success" : "default"}
-                        size="small"
-                      />
-                    )}
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      {(topic.mention_count ? topic.mention_count.toLocaleString() : '0')} mentions
+        
+        {trendingTopics.length > 0 ? (
+          trendingTopics.map((topic) => (
+            <Accordion 
+              key={topic.id}
+              expanded={expandedTopics[topic.id] || false}
+              onChange={() => handleTopicExpand(topic.id)}
+              sx={{ mb: 2 }}
+            >
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                aria-controls={`topic-${topic.id}-content`}
+                id={`topic-${topic.id}-header`}
+              >
+                <Grid container alignItems="center" spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="h6">
+                      {topic.title || topic.name}
                     </Typography>
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Chip 
+                      label={topic.category} 
+                      size="small" 
+                      color="secondary" 
+                      sx={{ mr: 1 }}
+                    />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <TrendingUpIcon color="success" sx={{ mr: 0.5, fontSize: 16 }} />
-                      <Typography variant="body2" fontWeight="bold" color="success.main">
-                        {topic.growth_percentage || topic.growthRate || 0}%
+                      <TrendingUpIcon color="primary" sx={{ mr: 0.5, fontSize: '1rem' }} />
+                      <Typography variant="body2">
+                        {topic.growth_percentage || topic.growthRate || 0}% growth
                       </Typography>
                     </Box>
+                  </Grid>
+                </Grid>
+              </AccordionSummary>
+              
+              <AccordionDetails>
+                {loadingTopics[topic.id] ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                    <CircularProgress size={30} />
                   </Box>
-                </CardContent>
-                <CardActions>
-                  <Button 
-                    component={RouterLink} 
-                    to={`/topics/${topic.id}`} 
-                    size="small" 
-                    fullWidth
-                  >
-                    View Details
-                  </Button>
-                </CardActions>
-              </Card>
-            </Grid>
-          ))}
+                ) : (
+                  <>
+                    <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+                      <Tabs 
+                        value={tabValues[topic.id] || 0} 
+                        onChange={(_, newValue) => handleTabChange(topic.id, newValue)}
+                        variant={isMobile ? "scrollable" : "fullWidth"}
+                        scrollButtons={isMobile ? "auto" : undefined}
+                      >
+                        <Tab label="Pain Points" />
+                        <Tab label="Solution Requests" />
+                        <Tab label="App Ideas" />
+                      </Tabs>
+                    </Box>
+                    
+                    <TabPanel value={tabValues[topic.id] || 0} index={0}>
+                      <PainPointsComponent 
+                        painPoints={topicDetails[topic.id]?.pain_points || []} 
+                        variant="default"
+                        maxItems={5}
+                      />
+                    </TabPanel>
+                    
+                    <TabPanel value={tabValues[topic.id] || 0} index={1}>
+                      <SolutionRequestsComponent 
+                        solutionRequests={topicDetails[topic.id]?.solution_requests || []} 
+                        variant="default"
+                        maxItems={5}
+                      />
+                    </TabPanel>
+                    
+                    <TabPanel value={tabValues[topic.id] || 0} index={2}>
+                      <AppIdeasComponent 
+                        appIdeas={topicDetails[topic.id]?.app_ideas || []} 
+                        variant="default"
+                        maxItems={5}
+                      />
+                    </TabPanel>
+                    
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                      <Button 
+                        variant="outlined" 
+                        onClick={() => handleViewFullDetails(topic.id)}
+                      >
+                        View Full Details
+                      </Button>
+                    </Box>
+                  </>
+                )}
+              </AccordionDetails>
+            </Accordion>
+          ))
+        ) : (
+          <Alert severity="info">
+            No trending topics found. Check back later for updates.
+          </Alert>
+        )}
+      </Paper>
+      
+      {/* Quick Links */}
+      <Paper sx={{ p: 3 }}>
+        <Typography variant="h5" component="h2" gutterBottom>
+          Quick Navigation
+        </Typography>
+        <Grid container spacing={2}>
+          <Grid item xs={12} sm={6} md={4}>
+            <Button 
+              variant="contained" 
+              fullWidth 
+              onClick={() => navigate('/topics')}
+              sx={{ py: 2 }}
+            >
+              Explore All Topics
+            </Button>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <Button 
+              variant="contained" 
+              fullWidth 
+              onClick={() => navigate('/market-analysis')}
+              sx={{ py: 2 }}
+            >
+              Market Analysis
+            </Button>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            <Button 
+              variant="contained" 
+              fullWidth 
+              onClick={() => navigate('/text-analysis')}
+              sx={{ py: 2 }}
+            >
+              Analyze Your Text
+            </Button>
+          </Grid>
         </Grid>
-      </Box>
+      </Paper>
     </Container>
   );
 };
