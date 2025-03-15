@@ -1,5 +1,5 @@
 {
-  "name": "reddit-radar-frontend",
+  "name": "idea-engine-frontend",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
@@ -14,7 +14,7 @@
     "@types/node": "^16.18.39",
     "@types/react": "^18.2.18",
     "@types/react-dom": "^18.2.7",
-    "axios": "^1.4.0",
+    "axios": "^1.8.2",
     "chart.js": "^4.3.3",
     "react": "^18.2.0",
     "react-chartjs-2": "^5.2.0",
@@ -24,7 +24,15 @@
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
   },
+  "resolutions": {
+    "nth-check": "2.1.1",
+    "postcss": "8.4.31",
+    "@babel/helpers": "7.26.10",
+    "@babel/runtime": "7.26.10",
+    "svgo": "2.8.0"
+  },
   "scripts": {
+    "preinstall": "npx npm-force-resolutions",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
@@ -47,5 +55,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "npm-force-resolutions": "0.0.10"
   }
 } 
