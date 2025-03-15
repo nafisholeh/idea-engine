@@ -27,12 +27,14 @@ import ExploreIcon from '@mui/icons-material/Explore';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import InfoIcon from '@mui/icons-material/Info';
+import AnalyticsIcon from '@mui/icons-material/Analytics';
 
 const pages = [
   { name: 'Dashboard', path: '/', icon: <DashboardIcon /> },
   { name: 'Market Analysis', path: '/market-analysis', icon: <BarChartIcon /> },
   { name: 'Topic Explorer', path: '/topics', icon: <ExploreIcon /> },
   { name: 'Opportunity Finder', path: '/opportunities', icon: <TrendingUpIcon /> },
+  { name: 'Text Analysis', path: '/text-analysis', icon: <AnalyticsIcon /> },
   { name: 'Submit Idea', path: '/submit-idea', icon: <AddCircleOutlineIcon /> },
   { name: 'About', path: '/about', icon: <InfoIcon /> }
 ];
@@ -68,7 +70,7 @@ const Navigation: React.FC = () => {
   const drawer = (
     <Box onClick={handleDrawerToggle} sx={{ textAlign: 'center' }}>
       <Typography variant="h6" sx={{ my: 2 }}>
-        RedditRadar
+        Idea Engine
       </Typography>
       <Divider />
       <List>
@@ -115,7 +117,7 @@ const Navigation: React.FC = () => {
                 textDecoration: 'none',
               }}
             >
-              RedditRadar
+              Idea Engine
             </Typography>
 
             {/* Mobile menu */}
@@ -149,7 +151,7 @@ const Navigation: React.FC = () => {
                 textDecoration: 'none',
               }}
             >
-              RedditRadar
+              Idea Engine
             </Typography>
 
             {/* Desktop menu */}
@@ -226,7 +228,38 @@ const Navigation: React.FC = () => {
           '& .MuiDrawer-paper': { boxSizing: 'border-box', width: 240 },
         }}
       >
-        {drawer}
+        <Box
+          sx={{ width: 250 }}
+          role="presentation"
+          onClick={handleDrawerToggle}
+          onKeyDown={handleDrawerToggle}
+        >
+          <List>
+            <ListItem>
+              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                Idea Engine
+              </Typography>
+            </ListItem>
+            {pages.map((page) => (
+              <ListItem key={page.name} disablePadding>
+                <ListItemButton
+                  component={Link}
+                  to={page.path}
+                  selected={location.pathname === page.path}
+                  sx={{
+                    textAlign: 'left',
+                    '&.Mui-selected': {
+                      backgroundColor: 'rgba(25, 118, 210, 0.08)',
+                    },
+                  }}
+                >
+                  <ListItemIcon>{page.icon}</ListItemIcon>
+                  <ListItemText primary={page.name} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </Box>
       </Drawer>
     </>
   );

@@ -26,7 +26,7 @@ const AboutPage: React.FC = () => {
     <Container maxWidth="lg" sx={{ mt: 4, mb: 8 }}>
       <Paper elevation={2} sx={{ p: 4, borderRadius: 2 }}>
         <Typography variant="h3" component="h1" gutterBottom align="center" sx={{ mb: 4 }}>
-          About RedditRadar
+          About Idea Engine
         </Typography>
         
         <Box sx={{ mb: 6 }}>
@@ -34,7 +34,7 @@ const AboutPage: React.FC = () => {
             Our Mission
           </Typography>
           <Typography variant="body1" paragraph>
-            RedditRadar is a powerful tool designed to help entrepreneurs, product managers, and developers identify promising SaaS opportunities by analyzing discussions on Reddit. 
+            Idea Engine is a powerful tool designed to help entrepreneurs, product managers, and developers identify promising SaaS opportunities by analyzing discussions on platforms like Reddit, Hacker News, and Quora. 
             By leveraging natural language processing and data analysis, we extract valuable insights about user pain points, emerging trends, and market gaps.
           </Typography>
           <Typography variant="body1">
@@ -216,7 +216,7 @@ const AboutPage: React.FC = () => {
             Contact Us
           </Typography>
           <Typography variant="body1">
-            Have questions, feedback, or suggestions? We'd love to hear from you! Reach out to us at <strong>contact@redditradar.com</strong>.
+            Have questions, feedback, or suggestions? We'd love to hear from you! Reach out to us at <strong>contact@idea-engine.com</strong>.
           </Typography>
         </Box>
       </Paper>
