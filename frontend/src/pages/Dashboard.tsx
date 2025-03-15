@@ -13,15 +13,11 @@ import {
   Alert,
   Paper,
   Divider,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Tabs,
   Tab,
   useTheme,
   useMediaQuery
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import CategoryIcon from '@mui/icons-material/Category';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
@@ -52,7 +48,7 @@ const TabPanel = (props: TabPanelProps) => {
       {...other}
     >
       {value === index && (
-        <Box sx={{ p: 2 }}>
+        <Box sx={{ p: 1 }}>
           {children}
         </Box>
       )}
@@ -71,8 +67,7 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
-  // State for expanded topic details
-  const [expandedTopics, setExpandedTopics] = useState<Record<number, boolean>>({});
+  // State for topic details
   const [topicDetails, setTopicDetails] = useState<Record<number, RedditTopic>>({});
   const [loadingTopics, setLoadingTopics] = useState<Record<number, boolean>>({});
   const [tabValues, setTabValues] = useState<Record<number, number>>({});
@@ -100,49 +95,55 @@ const Dashboard: React.FC = () => {
     fetchDashboardData();
   }, []);
 
-  // Handle topic expansion
-  const handleTopicExpand = async (topicId: number) => {
-    const isExpanded = expandedTopics[topicId] || false;
-    
-    // Update expanded state
-    setExpandedTopics({
-      ...expandedTopics,
-      [topicId]: !isExpanded
-    });
-    
-    // Initialize tab value if not set
-    if (tabValues[topicId] === undefined) {
-      setTabValues({
-        ...tabValues,
-        [topicId]: 0
+  // Fetch topic details for all trending topics
+  useEffect(() => {
+    const fetchAllTopicDetails = async () => {
+      if (trendingTopics.length === 0) return;
+      
+      // Create a map of topic IDs to track loading state
+      const loadingMap: Record<number, boolean> = {};
+      trendingTopics.forEach(topic => {
+        loadingMap[topic.id] = true;
       });
-    }
-    
-    // Fetch topic details if expanding and not already loaded
-    if (!isExpanded && !topicDetails[topicId]) {
+      
+      setLoadingTopics(loadingMap);
+      
+      // Initialize tab values for all topics
+      const initialTabValues: Record<number, number> = {};
+      trendingTopics.forEach(topic => {
+        initialTabValues[topic.id] = 0;
+      });
+      
+      setTabValues(initialTabValues);
+      
+      // Fetch details for all topics in parallel
       try {
-        setLoadingTopics({
-          ...loadingTopics,
-          [topicId]: true
+        const detailsPromises = trendingTopics.map(topic => getTopicById(topic.id));
+        const topicsDetailsArray = await Promise.all(detailsPromises);
+        
+        // Convert array of topic details to a record object
+        const topicsDetailsRecord: Record<number, RedditTopic> = {};
+        topicsDetailsArray.forEach(topicDetail => {
+          topicsDetailsRecord[topicDetail.id] = topicDetail;
         });
         
-        const topicData = await getTopicById(topicId);
-        
-        setTopicDetails({
-          ...topicDetails,
-          [topicId]: topicData
-        });
+        setTopicDetails(topicsDetailsRecord);
       } catch (err) {
-        console.error(`Error fetching details for topic ${topicId}:`, err);
-        setError(`Failed to load details for this topic. Please try again later.`);
+        console.error('Error fetching topic details:', err);
+        setError('Failed to load some topic details. Please try again later.');
       } finally {
-        setLoadingTopics({
-          ...loadingTopics,
-          [topicId]: false
+        // Set all topics as loaded
+        const completedLoadingMap: Record<number, boolean> = {};
+        trendingTopics.forEach(topic => {
+          completedLoadingMap[topic.id] = false;
         });
+        
+        setLoadingTopics(completedLoadingMap);
       }
-    }
-  };
+    };
+    
+    fetchAllTopicDetails();
+  }, [trendingTopics]);
 
   // Handle tab change
   const handleTabChange = (topicId: number, newValue: number) => {
@@ -256,106 +257,191 @@ const Dashboard: React.FC = () => {
         </Typography>
         <Typography variant="body2" color="textSecondary" paragraph>
           Explore trending topics with their pain points, solution requests, and app ideas all in one place.
-          Click on a topic to expand and see detailed information.
         </Typography>
         
         <Divider sx={{ mb: 3 }} />
         
         {trendingTopics.length > 0 ? (
-          trendingTopics.map((topic) => (
-            <Accordion 
-              key={topic.id}
-              expanded={expandedTopics[topic.id] || false}
-              onChange={() => handleTopicExpand(topic.id)}
-              sx={{ mb: 2 }}
-            >
-              <AccordionSummary
-                expandIcon={<ExpandMoreIcon />}
-                aria-controls={`topic-${topic.id}-content`}
-                id={`topic-${topic.id}-header`}
-              >
-                <Grid container alignItems="center" spacing={2}>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="h6">
+          <Grid container spacing={3}>
+            {trendingTopics.map((topic) => (
+              <Grid item xs={12} key={topic.id}>
+                <Card variant="outlined" sx={{ mb: 2 }}>
+                  <CardContent>
+                    {/* Topic Header */}
+                    <Box sx={{ mb: 2 }}>
+                      <Grid container alignItems="center" spacing={2}>
+                        <Grid item xs={12} sm={6}>
+                          <Typography variant="h6">
+                            {topic.title || topic.name}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Chip 
+                            label={topic.category} 
+                            size="small" 
+                            color="secondary" 
+                            sx={{ mr: 1 }}
+                          />
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            <TrendingUpIcon color="primary" sx={{ mr: 0.5, fontSize: '1rem' }} />
+                            <Typography variant="body2">
+                              {topic.growth_percentage || topic.growthRate || 0}% growth
+                            </Typography>
+                          </Box>
+                        </Grid>
+                      </Grid>
+                    </Box>
+                    
+                    {/* Topic Content */}
+                    {loadingTopics[topic.id] ? (
+                      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                        <CircularProgress size={30} />
+                      </Box>
+                    ) : (
+                      <>
+                        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+                          <Tabs 
+                            value={tabValues[topic.id] || 0} 
+                            onChange={(_, newValue) => handleTabChange(topic.id, newValue)}
+                            variant={isMobile ? "scrollable" : "fullWidth"}
+                            scrollButtons={isMobile ? "auto" : undefined}
+                          >
+                            <Tab label="Pain Points" />
+                            <Tab label="Solution Requests" />
+                            <Tab label="App Ideas" />
+                          </Tabs>
+                        </Box>
+                        
+                        <Box sx={{ maxHeight: '250px', overflowY: 'auto', mb: 2 }}>
+                          <TabPanel value={tabValues[topic.id] || 0} index={0}>
+                            <PainPointsComponent 
+                              painPoints={topicDetails[topic.id]?.pain_points || []} 
+                              variant="default"
+                              maxItems={5}
+                            />
+                          </TabPanel>
+                          
+                          <TabPanel value={tabValues[topic.id] || 0} index={1}>
+                            <SolutionRequestsComponent 
+                              solutionRequests={topicDetails[topic.id]?.solution_requests || []} 
+                              variant="default"
+                              maxItems={5}
+                            />
+                          </TabPanel>
+                          
+                          <TabPanel value={tabValues[topic.id] || 0} index={2}>
+                            <AppIdeasComponent 
+                              appIdeas={topicDetails[topic.id]?.app_ideas || []} 
+                              variant="default"
+                              maxItems={5}
+                            />
+                          </TabPanel>
+                        </Box>
+                        
+                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          <Button 
+                            variant="outlined" 
+                            onClick={() => handleViewFullDetails(topic.id)}
+                          >
+                            View Full Details
+                          </Button>
+                        </Box>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        ) : (
+          <Alert severity="info">
+            No trending topics found. Check back later for updates.
+          </Alert>
+        )}
+      </Paper>
+      
+      {/* Alternative View: All Data at Once */}
+      <Paper sx={{ p: 3, mb: 4 }}>
+        <Typography variant="h5" component="h2" gutterBottom>
+          All Insights at a Glance
+        </Typography>
+        <Typography variant="body2" color="textSecondary" paragraph>
+          View all pain points, solution requests, and app ideas for trending topics in a single view.
+        </Typography>
+        
+        <Divider sx={{ mb: 3 }} />
+        
+        {trendingTopics.length > 0 ? (
+          <Grid container spacing={3}>
+            {/* Pain Points Section */}
+            <Grid item xs={12} md={4}>
+              <Typography variant="h6" gutterBottom>
+                Top Pain Points
+              </Typography>
+              <Box sx={{ maxHeight: '500px', overflowY: 'auto', pr: 1 }}>
+                {trendingTopics.map((topic) => (
+                  <Box key={`pain-${topic.id}`} sx={{ mb: 3 }}>
+                    <Typography variant="subtitle1" color="primary" gutterBottom>
                       {topic.title || topic.name}
                     </Typography>
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <Chip 
-                      label={topic.category} 
-                      size="small" 
-                      color="secondary" 
-                      sx={{ mr: 1 }}
+                    <PainPointsComponent 
+                      painPoints={topicDetails[topic.id]?.pain_points || []} 
+                      variant="compact"
+                      maxItems={3}
+                      title=""
                     />
-                  </Grid>
-                  <Grid item xs={6} sm={3}>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <TrendingUpIcon color="primary" sx={{ mr: 0.5, fontSize: '1rem' }} />
-                      <Typography variant="body2">
-                        {topic.growth_percentage || topic.growthRate || 0}% growth
-                      </Typography>
-                    </Box>
-                  </Grid>
-                </Grid>
-              </AccordionSummary>
-              
-              <AccordionDetails>
-                {loadingTopics[topic.id] ? (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                    <CircularProgress size={30} />
                   </Box>
-                ) : (
-                  <>
-                    <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-                      <Tabs 
-                        value={tabValues[topic.id] || 0} 
-                        onChange={(_, newValue) => handleTabChange(topic.id, newValue)}
-                        variant={isMobile ? "scrollable" : "fullWidth"}
-                        scrollButtons={isMobile ? "auto" : undefined}
-                      >
-                        <Tab label="Pain Points" />
-                        <Tab label="Solution Requests" />
-                        <Tab label="App Ideas" />
-                      </Tabs>
-                    </Box>
-                    
-                    <TabPanel value={tabValues[topic.id] || 0} index={0}>
-                      <PainPointsComponent 
-                        painPoints={topicDetails[topic.id]?.pain_points || []} 
-                        variant="default"
-                        maxItems={5}
-                      />
-                    </TabPanel>
-                    
-                    <TabPanel value={tabValues[topic.id] || 0} index={1}>
-                      <SolutionRequestsComponent 
-                        solutionRequests={topicDetails[topic.id]?.solution_requests || []} 
-                        variant="default"
-                        maxItems={5}
-                      />
-                    </TabPanel>
-                    
-                    <TabPanel value={tabValues[topic.id] || 0} index={2}>
-                      <AppIdeasComponent 
-                        appIdeas={topicDetails[topic.id]?.app_ideas || []} 
-                        variant="default"
-                        maxItems={5}
-                      />
-                    </TabPanel>
-                    
-                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
-                      <Button 
-                        variant="outlined" 
-                        onClick={() => handleViewFullDetails(topic.id)}
-                      >
-                        View Full Details
-                      </Button>
-                    </Box>
-                  </>
-                )}
-              </AccordionDetails>
-            </Accordion>
-          ))
+                ))}
+              </Box>
+            </Grid>
+            
+            {/* Solution Requests Section */}
+            <Grid item xs={12} md={4}>
+              <Typography variant="h6" gutterBottom>
+                Top Solution Requests
+              </Typography>
+              <Box sx={{ maxHeight: '500px', overflowY: 'auto', pr: 1 }}>
+                {trendingTopics.map((topic) => (
+                  <Box key={`solution-${topic.id}`} sx={{ mb: 3 }}>
+                    <Typography variant="subtitle1" color="primary" gutterBottom>
+                      {topic.title || topic.name}
+                    </Typography>
+                    <SolutionRequestsComponent 
+                      solutionRequests={topicDetails[topic.id]?.solution_requests || []} 
+                      variant="compact"
+                      maxItems={3}
+                      title=""
+                    />
+                  </Box>
+                ))}
+              </Box>
+            </Grid>
+            
+            {/* App Ideas Section */}
+            <Grid item xs={12} md={4}>
+              <Typography variant="h6" gutterBottom>
+                Top App Ideas
+              </Typography>
+              <Box sx={{ maxHeight: '500px', overflowY: 'auto', pr: 1 }}>
+                {trendingTopics.map((topic) => (
+                  <Box key={`idea-${topic.id}`} sx={{ mb: 3 }}>
+                    <Typography variant="subtitle1" color="primary" gutterBottom>
+                      {topic.title || topic.name}
+                    </Typography>
+                    <AppIdeasComponent 
+                      appIdeas={topicDetails[topic.id]?.app_ideas || []} 
+                      variant="compact"
+                      maxItems={3}
+                      title=""
+                      onSelectIdea={() => handleViewFullDetails(topic.id)}
+                    />
+                  </Box>
+                ))}
+              </Box>
+            </Grid>
+          </Grid>
         ) : (
           <Alert severity="info">
             No trending topics found. Check back later for updates.
