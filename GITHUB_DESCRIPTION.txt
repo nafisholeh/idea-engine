@@ -1,0 +1,1 @@
+A data-driven web app that analyzes online discussions to identify trending topics, pain points, and SaaS opportunities. Uses NLP and data analysis to help entrepreneurs discover promising business ideas backed by real user data. 
