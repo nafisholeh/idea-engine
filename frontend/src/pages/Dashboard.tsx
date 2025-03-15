@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -16,12 +16,16 @@ import {
   Tabs,
   Tab,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  IconButton,
+  alpha
 } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import CategoryIcon from '@mui/icons-material/Category';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import PieChartIcon from '@mui/icons-material/PieChart';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { getDashboardStats, getTopTrendingTopics, getTopicById } from '../services/api';
 import { DashboardStats, RedditTopic } from '../types';
 import PainPointsComponent from '../components/PainPointsComponent';
@@ -60,6 +64,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   
   // State for dashboard data
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -71,6 +76,24 @@ const Dashboard: React.FC = () => {
   const [topicDetails, setTopicDetails] = useState<Record<number, RedditTopic>>({});
   const [loadingTopics, setLoadingTopics] = useState<Record<number, boolean>>({});
   const [tabValues, setTabValues] = useState<Record<number, number>>({});
+
+  // Custom theme colors
+  const primaryBlue = theme.palette.primary.main;
+  const lightBlue = alpha(theme.palette.primary.main, 0.1);
+  const mediumBlue = alpha(theme.palette.primary.main, 0.5);
+
+  // Scroll handlers for horizontal scrolling
+  const handleScrollLeft = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: -300, behavior: 'smooth' });
+    }
+  };
+
+  const handleScrollRight = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+    }
+  };
 
   // Fetch dashboard data on component mount
   useEffect(() => {
@@ -161,8 +184,8 @@ const Dashboard: React.FC = () => {
   if (loading) {
     return (
       <Container sx={{ mt: 4, textAlign: 'center' }}>
-        <CircularProgress />
-        <Typography variant="body1" sx={{ mt: 2 }}>
+        <CircularProgress sx={{ color: primaryBlue }} />
+        <Typography variant="body1" sx={{ mt: 2, color: 'text.secondary' }}>
           Loading dashboard data...
         </Typography>
       </Container>
@@ -179,21 +202,41 @@ const Dashboard: React.FC = () => {
 
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 8 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
+      <Typography 
+        variant="h4" 
+        component="h1" 
+        gutterBottom 
+        sx={{ 
+          fontWeight: 300, 
+          color: primaryBlue,
+          mb: 4
+        }}
+      >
         Idea Engine Dashboard
       </Typography>
       
       {/* Stats Overview */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
+      <Grid container spacing={3} sx={{ mb: 5 }}>
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
+          <Card 
+            elevation={0} 
+            sx={{ 
+              borderRadius: 4, 
+              backgroundColor: lightBlue,
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              '&:hover': {
+                transform: 'translateY(-5px)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+              }
+            }}
+          >
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>
+              <Typography color="text.secondary" gutterBottom>
                 Total Topics
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <PieChartIcon color="primary" sx={{ mr: 1 }} />
-                <Typography variant="h5" component="div">
+                <PieChartIcon sx={{ mr: 1, color: primaryBlue }} />
+                <Typography variant="h5" component="div" sx={{ fontWeight: 500, color: primaryBlue }}>
                   {stats?.totalTopics || stats?.total_topics || 0}
                 </Typography>
               </Box>
@@ -202,14 +245,25 @@ const Dashboard: React.FC = () => {
         </Grid>
         
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
+          <Card 
+            elevation={0} 
+            sx={{ 
+              borderRadius: 4, 
+              backgroundColor: lightBlue,
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              '&:hover': {
+                transform: 'translateY(-5px)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+              }
+            }}
+          >
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>
+              <Typography color="text.secondary" gutterBottom>
                 Trending Topics
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <TrendingUpIcon color="primary" sx={{ mr: 1 }} />
-                <Typography variant="h5" component="div">
+                <TrendingUpIcon sx={{ mr: 1, color: primaryBlue }} />
+                <Typography variant="h5" component="div" sx={{ fontWeight: 500, color: primaryBlue }}>
                   {stats?.trendingTopics || 0}
                 </Typography>
               </Box>
@@ -218,14 +272,25 @@ const Dashboard: React.FC = () => {
         </Grid>
         
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
+          <Card 
+            elevation={0} 
+            sx={{ 
+              borderRadius: 4, 
+              backgroundColor: lightBlue,
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              '&:hover': {
+                transform: 'translateY(-5px)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+              }
+            }}
+          >
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>
+              <Typography color="text.secondary" gutterBottom>
                 Categories
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <CategoryIcon color="primary" sx={{ mr: 1 }} />
-                <Typography variant="h5" component="div">
+                <CategoryIcon sx={{ mr: 1, color: primaryBlue }} />
+                <Typography variant="h5" component="div" sx={{ fontWeight: 500, color: primaryBlue }}>
                   {stats?.totalCategories || 0}
                 </Typography>
               </Box>
@@ -234,14 +299,25 @@ const Dashboard: React.FC = () => {
         </Grid>
         
         <Grid item xs={12} sm={6} md={3}>
-          <Card>
+          <Card 
+            elevation={0} 
+            sx={{ 
+              borderRadius: 4, 
+              backgroundColor: lightBlue,
+              transition: 'transform 0.2s, box-shadow 0.2s',
+              '&:hover': {
+                transform: 'translateY(-5px)',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+              }
+            }}
+          >
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>
+              <Typography color="text.secondary" gutterBottom>
                 Avg. Growth Rate
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <ShowChartIcon color="primary" sx={{ mr: 1 }} />
-                <Typography variant="h5" component="div">
+                <ShowChartIcon sx={{ mr: 1, color: primaryBlue }} />
+                <Typography variant="h5" component="div" sx={{ fontWeight: 500, color: primaryBlue }}>
                   {stats?.averageGrowthRate || stats?.avg_growth || 0}%
                 </Typography>
               </Box>
@@ -250,124 +326,246 @@ const Dashboard: React.FC = () => {
         </Grid>
       </Grid>
       
-      {/* Trending Topics with Detailed Information */}
-      <Paper sx={{ p: 3, mb: 4 }}>
-        <Typography variant="h5" component="h2" gutterBottom>
-          Trending Topics with Insights
-        </Typography>
-        <Typography variant="body2" color="textSecondary" paragraph>
-          Explore trending topics with their pain points, solution requests, and app ideas all in one place.
-        </Typography>
+      {/* Trending Topics with Horizontal Scrolling */}
+      <Paper 
+        elevation={0} 
+        sx={{ 
+          p: 3, 
+          mb: 5, 
+          borderRadius: 4,
+          backgroundColor: 'white',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
+        }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Box>
+            <Typography 
+              variant="h5" 
+              component="h2" 
+              gutterBottom 
+              sx={{ fontWeight: 500, color: primaryBlue }}
+            >
+              Trending Topics with Insights
+            </Typography>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              Explore trending topics with their pain points, solution requests, and app ideas.
+            </Typography>
+          </Box>
+          
+          <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
+            <IconButton 
+              onClick={handleScrollLeft} 
+              sx={{ 
+                backgroundColor: lightBlue, 
+                mr: 1,
+                '&:hover': { backgroundColor: mediumBlue }
+              }}
+            >
+              <ArrowBackIcon sx={{ color: primaryBlue }} />
+            </IconButton>
+            <IconButton 
+              onClick={handleScrollRight} 
+              sx={{ 
+                backgroundColor: lightBlue,
+                '&:hover': { backgroundColor: mediumBlue }
+              }}
+            >
+              <ArrowForwardIcon sx={{ color: primaryBlue }} />
+            </IconButton>
+          </Box>
+        </Box>
         
         <Divider sx={{ mb: 3 }} />
         
         {trendingTopics.length > 0 ? (
-          <Grid container spacing={3}>
+          <Box 
+            ref={scrollContainerRef}
+            sx={{ 
+              display: 'flex', 
+              overflowX: 'auto', 
+              pb: 2,
+              scrollbarWidth: 'none', // Firefox
+              '&::-webkit-scrollbar': { // Chrome, Safari, Edge
+                display: 'none'
+              },
+              '-ms-overflow-style': 'none', // IE
+              scrollSnapType: 'x mandatory'
+            }}
+          >
             {trendingTopics.map((topic) => (
-              <Grid item xs={12} key={topic.id}>
-                <Card variant="outlined" sx={{ mb: 2 }}>
-                  <CardContent>
-                    {/* Topic Header */}
-                    <Box sx={{ mb: 2 }}>
-                      <Grid container alignItems="center" spacing={2}>
-                        <Grid item xs={12} sm={6}>
-                          <Typography variant="h6">
-                            {topic.title || topic.name}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={6} sm={3}>
-                          <Chip 
-                            label={topic.category} 
-                            size="small" 
-                            color="secondary" 
-                            sx={{ mr: 1 }}
-                          />
-                        </Grid>
-                        <Grid item xs={6} sm={3}>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <TrendingUpIcon color="primary" sx={{ mr: 0.5, fontSize: '1rem' }} />
-                            <Typography variant="body2">
-                              {topic.growth_percentage || topic.growthRate || 0}% growth
-                            </Typography>
-                          </Box>
-                        </Grid>
-                      </Grid>
-                    </Box>
-                    
-                    {/* Topic Content */}
-                    {loadingTopics[topic.id] ? (
-                      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                        <CircularProgress size={30} />
+              <Card 
+                key={topic.id} 
+                variant="outlined" 
+                sx={{ 
+                  minWidth: { xs: '85%', sm: '400px', md: '450px' },
+                  maxWidth: { xs: '85%', sm: '400px', md: '450px' },
+                  mr: 2,
+                  mb: 1,
+                  borderRadius: 3,
+                  border: 'none',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                  scrollSnapAlign: 'start',
+                  transition: 'transform 0.2s, box-shadow 0.2s',
+                  '&:hover': {
+                    transform: 'translateY(-5px)',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.1)'
+                  }
+                }}
+              >
+                <CardContent>
+                  {/* Topic Header */}
+                  <Box sx={{ mb: 2 }}>
+                    <Typography 
+                      variant="h6" 
+                      sx={{ 
+                        fontWeight: 500, 
+                        color: primaryBlue,
+                        mb: 1
+                      }}
+                    >
+                      {topic.title || topic.name}
+                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Chip 
+                        label={topic.category} 
+                        size="small" 
+                        sx={{ 
+                          borderRadius: '16px', 
+                          backgroundColor: lightBlue,
+                          color: primaryBlue,
+                          fontWeight: 500
+                        }} 
+                      />
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        <TrendingUpIcon sx={{ mr: 0.5, fontSize: '1rem', color: primaryBlue }} />
+                        <Typography variant="body2" sx={{ fontWeight: 500, color: primaryBlue }}>
+                          {topic.growth_percentage || topic.growthRate || 0}% growth
+                        </Typography>
                       </Box>
-                    ) : (
-                      <>
-                        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-                          <Tabs 
-                            value={tabValues[topic.id] || 0} 
-                            onChange={(_, newValue) => handleTabChange(topic.id, newValue)}
-                            variant={isMobile ? "scrollable" : "fullWidth"}
-                            scrollButtons={isMobile ? "auto" : undefined}
-                          >
-                            <Tab label="Pain Points" />
-                            <Tab label="Solution Requests" />
-                            <Tab label="App Ideas" />
-                          </Tabs>
-                        </Box>
+                    </Box>
+                  </Box>
+                  
+                  {/* Topic Content */}
+                  {loadingTopics[topic.id] ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                      <CircularProgress size={30} sx={{ color: primaryBlue }} />
+                    </Box>
+                  ) : (
+                    <>
+                      <Box sx={{ 
+                        borderBottom: 1, 
+                        borderColor: 'divider', 
+                        mb: 2,
+                        '& .MuiTabs-indicator': {
+                          backgroundColor: primaryBlue
+                        }
+                      }}>
+                        <Tabs 
+                          value={tabValues[topic.id] || 0} 
+                          onChange={(_, newValue) => handleTabChange(topic.id, newValue)}
+                          variant="fullWidth"
+                          sx={{
+                            '& .MuiTab-root': {
+                              textTransform: 'none',
+                              fontWeight: 500,
+                              color: 'text.secondary',
+                              '&.Mui-selected': {
+                                color: primaryBlue
+                              }
+                            }
+                          }}
+                        >
+                          <Tab label="Pain Points" />
+                          <Tab label="Solution Requests" />
+                          <Tab label="App Ideas" />
+                        </Tabs>
+                      </Box>
+                      
+                      <Box sx={{ height: '250px', overflowY: 'auto', mb: 2, pr: 1 }}>
+                        <TabPanel value={tabValues[topic.id] || 0} index={0}>
+                          <PainPointsComponent 
+                            painPoints={topicDetails[topic.id]?.pain_points || []} 
+                            variant="default"
+                            maxItems={5}
+                          />
+                        </TabPanel>
                         
-                        <Box sx={{ maxHeight: '250px', overflowY: 'auto', mb: 2 }}>
-                          <TabPanel value={tabValues[topic.id] || 0} index={0}>
-                            <PainPointsComponent 
-                              painPoints={topicDetails[topic.id]?.pain_points || []} 
-                              variant="default"
-                              maxItems={5}
-                            />
-                          </TabPanel>
-                          
-                          <TabPanel value={tabValues[topic.id] || 0} index={1}>
-                            <SolutionRequestsComponent 
-                              solutionRequests={topicDetails[topic.id]?.solution_requests || []} 
-                              variant="default"
-                              maxItems={5}
-                            />
-                          </TabPanel>
-                          
-                          <TabPanel value={tabValues[topic.id] || 0} index={2}>
-                            <AppIdeasComponent 
-                              appIdeas={topicDetails[topic.id]?.app_ideas || []} 
-                              variant="default"
-                              maxItems={5}
-                            />
-                          </TabPanel>
-                        </Box>
+                        <TabPanel value={tabValues[topic.id] || 0} index={1}>
+                          <SolutionRequestsComponent 
+                            solutionRequests={topicDetails[topic.id]?.solution_requests || []} 
+                            variant="default"
+                            maxItems={5}
+                          />
+                        </TabPanel>
                         
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                          <Button 
-                            variant="outlined" 
-                            onClick={() => handleViewFullDetails(topic.id)}
-                          >
-                            View Full Details
-                          </Button>
-                        </Box>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-              </Grid>
+                        <TabPanel value={tabValues[topic.id] || 0} index={2}>
+                          <AppIdeasComponent 
+                            appIdeas={topicDetails[topic.id]?.app_ideas || []} 
+                            variant="default"
+                            maxItems={5}
+                          />
+                        </TabPanel>
+                      </Box>
+                      
+                      <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <Button 
+                          variant="contained" 
+                          onClick={() => handleViewFullDetails(topic.id)}
+                          endIcon={<ArrowForwardIcon />}
+                          sx={{ 
+                            borderRadius: '24px',
+                            textTransform: 'none',
+                            boxShadow: 'none',
+                            backgroundColor: primaryBlue,
+                            '&:hover': {
+                              backgroundColor: mediumBlue,
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                            }
+                          }}
+                        >
+                          View Details
+                        </Button>
+                      </Box>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
             ))}
-          </Grid>
+          </Box>
         ) : (
-          <Alert severity="info">
+          <Alert 
+            severity="info" 
+            sx={{ 
+              borderRadius: 3,
+              backgroundColor: lightBlue,
+              color: primaryBlue
+            }}
+          >
             No trending topics found. Check back later for updates.
           </Alert>
         )}
       </Paper>
       
-      {/* Alternative View: All Data at Once */}
-      <Paper sx={{ p: 3, mb: 4 }}>
-        <Typography variant="h5" component="h2" gutterBottom>
+      {/* All Insights at a Glance */}
+      <Paper 
+        elevation={0} 
+        sx={{ 
+          p: 3, 
+          mb: 5, 
+          borderRadius: 4,
+          backgroundColor: 'white',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
+        }}
+      >
+        <Typography 
+          variant="h5" 
+          component="h2" 
+          gutterBottom 
+          sx={{ fontWeight: 500, color: primaryBlue }}
+        >
           All Insights at a Glance
         </Typography>
-        <Typography variant="body2" color="textSecondary" paragraph>
+        <Typography variant="body2" color="text.secondary" paragraph>
           View all pain points, solution requests, and app ideas for trending topics in a single view.
         </Typography>
         
@@ -377,13 +575,37 @@ const Dashboard: React.FC = () => {
           <Grid container spacing={3}>
             {/* Pain Points Section */}
             <Grid item xs={12} md={4}>
-              <Typography variant="h6" gutterBottom>
+              <Typography 
+                variant="h6" 
+                gutterBottom 
+                sx={{ fontWeight: 500, color: primaryBlue }}
+              >
                 Top Pain Points
               </Typography>
-              <Box sx={{ maxHeight: '500px', overflowY: 'auto', pr: 1 }}>
+              <Box sx={{ 
+                maxHeight: '500px', 
+                overflowY: 'auto', 
+                pr: 1,
+                scrollbarWidth: 'thin',
+                '&::-webkit-scrollbar': {
+                  width: '6px',
+                },
+                '&::-webkit-scrollbar-track': {
+                  backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                  borderRadius: '10px'
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  backgroundColor: mediumBlue,
+                  borderRadius: '10px'
+                }
+              }}>
                 {trendingTopics.map((topic) => (
                   <Box key={`pain-${topic.id}`} sx={{ mb: 3 }}>
-                    <Typography variant="subtitle1" color="primary" gutterBottom>
+                    <Typography 
+                      variant="subtitle1" 
+                      gutterBottom 
+                      sx={{ fontWeight: 500, color: primaryBlue }}
+                    >
                       {topic.title || topic.name}
                     </Typography>
                     <PainPointsComponent 
@@ -399,13 +621,37 @@ const Dashboard: React.FC = () => {
             
             {/* Solution Requests Section */}
             <Grid item xs={12} md={4}>
-              <Typography variant="h6" gutterBottom>
+              <Typography 
+                variant="h6" 
+                gutterBottom 
+                sx={{ fontWeight: 500, color: primaryBlue }}
+              >
                 Top Solution Requests
               </Typography>
-              <Box sx={{ maxHeight: '500px', overflowY: 'auto', pr: 1 }}>
+              <Box sx={{ 
+                maxHeight: '500px', 
+                overflowY: 'auto', 
+                pr: 1,
+                scrollbarWidth: 'thin',
+                '&::-webkit-scrollbar': {
+                  width: '6px',
+                },
+                '&::-webkit-scrollbar-track': {
+                  backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                  borderRadius: '10px'
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  backgroundColor: mediumBlue,
+                  borderRadius: '10px'
+                }
+              }}>
                 {trendingTopics.map((topic) => (
                   <Box key={`solution-${topic.id}`} sx={{ mb: 3 }}>
-                    <Typography variant="subtitle1" color="primary" gutterBottom>
+                    <Typography 
+                      variant="subtitle1" 
+                      gutterBottom 
+                      sx={{ fontWeight: 500, color: primaryBlue }}
+                    >
                       {topic.title || topic.name}
                     </Typography>
                     <SolutionRequestsComponent 
@@ -421,13 +667,37 @@ const Dashboard: React.FC = () => {
             
             {/* App Ideas Section */}
             <Grid item xs={12} md={4}>
-              <Typography variant="h6" gutterBottom>
+              <Typography 
+                variant="h6" 
+                gutterBottom 
+                sx={{ fontWeight: 500, color: primaryBlue }}
+              >
                 Top App Ideas
               </Typography>
-              <Box sx={{ maxHeight: '500px', overflowY: 'auto', pr: 1 }}>
+              <Box sx={{ 
+                maxHeight: '500px', 
+                overflowY: 'auto', 
+                pr: 1,
+                scrollbarWidth: 'thin',
+                '&::-webkit-scrollbar': {
+                  width: '6px',
+                },
+                '&::-webkit-scrollbar-track': {
+                  backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                  borderRadius: '10px'
+                },
+                '&::-webkit-scrollbar-thumb': {
+                  backgroundColor: mediumBlue,
+                  borderRadius: '10px'
+                }
+              }}>
                 {trendingTopics.map((topic) => (
                   <Box key={`idea-${topic.id}`} sx={{ mb: 3 }}>
-                    <Typography variant="subtitle1" color="primary" gutterBottom>
+                    <Typography 
+                      variant="subtitle1" 
+                      gutterBottom 
+                      sx={{ fontWeight: 500, color: primaryBlue }}
+                    >
                       {topic.title || topic.name}
                     </Typography>
                     <AppIdeasComponent 
@@ -443,15 +713,35 @@ const Dashboard: React.FC = () => {
             </Grid>
           </Grid>
         ) : (
-          <Alert severity="info">
+          <Alert 
+            severity="info" 
+            sx={{ 
+              borderRadius: 3,
+              backgroundColor: lightBlue,
+              color: primaryBlue
+            }}
+          >
             No trending topics found. Check back later for updates.
           </Alert>
         )}
       </Paper>
       
       {/* Quick Links */}
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h5" component="h2" gutterBottom>
+      <Paper 
+        elevation={0} 
+        sx={{ 
+          p: 3, 
+          borderRadius: 4,
+          backgroundColor: 'white',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
+        }}
+      >
+        <Typography 
+          variant="h5" 
+          component="h2" 
+          gutterBottom 
+          sx={{ fontWeight: 500, color: primaryBlue }}
+        >
           Quick Navigation
         </Typography>
         <Grid container spacing={2}>
@@ -460,7 +750,18 @@ const Dashboard: React.FC = () => {
               variant="contained" 
               fullWidth 
               onClick={() => navigate('/topics')}
-              sx={{ py: 2 }}
+              sx={{ 
+                py: 2, 
+                borderRadius: '24px',
+                textTransform: 'none',
+                fontWeight: 500,
+                boxShadow: 'none',
+                backgroundColor: primaryBlue,
+                '&:hover': {
+                  backgroundColor: mediumBlue,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                }
+              }}
             >
               Explore All Topics
             </Button>
@@ -470,7 +771,18 @@ const Dashboard: React.FC = () => {
               variant="contained" 
               fullWidth 
               onClick={() => navigate('/market-analysis')}
-              sx={{ py: 2 }}
+              sx={{ 
+                py: 2, 
+                borderRadius: '24px',
+                textTransform: 'none',
+                fontWeight: 500,
+                boxShadow: 'none',
+                backgroundColor: primaryBlue,
+                '&:hover': {
+                  backgroundColor: mediumBlue,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                }
+              }}
             >
               Market Analysis
             </Button>
@@ -480,7 +792,18 @@ const Dashboard: React.FC = () => {
               variant="contained" 
               fullWidth 
               onClick={() => navigate('/text-analysis')}
-              sx={{ py: 2 }}
+              sx={{ 
+                py: 2, 
+                borderRadius: '24px',
+                textTransform: 'none',
+                fontWeight: 500,
+                boxShadow: 'none',
+                backgroundColor: primaryBlue,
+                '&:hover': {
+                  backgroundColor: mediumBlue,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                }
+              }}
             >
               Analyze Your Text
             </Button>
