@@ -17,3 +17,21 @@ CREATE TABLE IF NOT EXISTS reddit_topics (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ); 
+
+-- User submitted ideas table
+CREATE TABLE IF NOT EXISTS user_submitted_ideas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    category TEXT NOT NULL,
+    target_audience TEXT,
+    pain_points TEXT DEFAULT '[]',
+    features TEXT DEFAULT '[]',
+    competitor_urls TEXT DEFAULT '[]',
+    monetization_model TEXT,
+    estimated_budget REAL DEFAULT 0,
+    submitter_email TEXT,
+    status TEXT DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+); 
