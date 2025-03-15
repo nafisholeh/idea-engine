@@ -2,7 +2,7 @@ import sqlite3
 import json
 
 def check_database():
-    conn = sqlite3.connect('./data/redditradar.db')
+    conn = sqlite3.connect('./data/ideaengine.db')
     cursor = conn.cursor()
     
     # Check table structure

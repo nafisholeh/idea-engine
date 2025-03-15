@@ -74,7 +74,7 @@ class DataCrawler:
     def initialize_database(self):
         """Initialize the SQLite database with required tables"""
         self.ensure_data_directory()
-        self.db = sqlite3.connect('data/redditradar.db')
+        self.db = sqlite3.connect('data/ideaengine.db')
         cursor = self.db.cursor()
         
         # Create tables if they don't exist

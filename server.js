@@ -1,14 +1,16 @@
-// server.js - Express backend for the Reddit Insights Dashboard
+// server.js - Express backend for the Idea Engine Dashboard
 
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 const fs = require('fs');
+const axios = require('axios');
 
 // Initialize express app
 const app = express();
 const PORT = process.env.PORT || 5000;
+const PYTHON_API_URL = 'http://localhost:5001';
 
 // Middleware
 app.use(cors());
@@ -21,7 +23,7 @@ if (!fs.existsSync(dataDir)) {
 }
 
 // Connect to SQLite database
-const dbPath = path.resolve(__dirname, 'data', 'redditradar.db');
+const dbPath = path.resolve(__dirname, 'data', 'ideaengine.db');
 console.log('Database path:', dbPath);
 
 if (!fs.existsSync(dbPath)) {
@@ -34,7 +36,46 @@ const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE, (err) => {
     console.error('Error connecting to database:', err.message);
     process.exit(1);
   }
-  console.log('Connected to the RedditRadar database.');
+  console.log('Connected to the Idea Engine database.');
+});
+
+// Proxy middleware for Python API
+app.use('/api/python', async (req, res) => {
+  try {
+    const pythonUrl = `${PYTHON_API_URL}${req.url}`;
+    console.log(`Proxying request to Python API: ${pythonUrl}`);
+    
+    const method = req.method.toLowerCase();
+    let response;
+    
+    if (method === 'get') {
+      response = await axios.get(pythonUrl);
+    } else if (method === 'post') {
+      response = await axios.post(pythonUrl, req.body);
+    } else if (method === 'put') {
+      response = await axios.put(pythonUrl, req.body);
+    } else if (method === 'delete') {
+      response = await axios.delete(pythonUrl);
+    } else {
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+    
+    res.status(response.status).json(response.data);
+  } catch (error) {
+    console.error('Python API proxy error:', error.message);
+    
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      res.status(error.response.status).json(error.response.data);
+    } else {
+      // Something happened in setting up the request that triggered an Error
+      res.status(500).json({ 
+        error: 'Failed to connect to Python API',
+        message: error.message
+      });
+    }
+  }
 });
 
 // Error handling middleware
@@ -285,6 +326,132 @@ app.get('/api/market-analysis', (req, res) => {
       });
     });
   });
+});
+
+app.get('/api/opportunities', (req, res) => {
+  console.log('Received request for opportunities with query:', req.query);
+  
+  const { minScore = 70, category } = req.query;
+  
+  let query = `
+    SELECT 
+      id,
+      name as title,
+      category,
+      growth_percentage as growth_rate,
+      mention_count,
+      updated_at as last_updated,
+      opportunity_scores,
+      json_extract(opportunity_scores, '$.total_score') as opportunity_score
+    FROM reddit_topics
+    WHERE json_extract(opportunity_scores, '$.total_score') >= ?
+  `;
+  
+  const params = [minScore];
+  
+  if (category && category !== 'all') {
+    query += ' AND category = ?';
+    params.push(category);
+  }
+  
+  query += ' ORDER BY json_extract(opportunity_scores, "$.total_score") DESC';
+  
+  console.log('Executing query:', query);
+  console.log('With parameters:', params);
+  
+  db.all(query, params, (err, opportunities) => {
+    if (err) {
+      console.error('Database error:', err);
+      return res.status(500).json({ error: 'Failed to fetch opportunities: ' + err.message });
+    }
+    
+    try {
+      // Parse opportunity_scores JSON for each opportunity
+      opportunities = opportunities.map(opportunity => ({
+        ...opportunity,
+        opportunity_scores: JSON.parse(opportunity.opportunity_scores || '{}')
+      }));
+      
+      console.log('Found opportunities:', opportunities?.length || 0);
+      res.json(opportunities || []);
+    } catch (error) {
+      console.error('Error parsing opportunity data:', error);
+      res.status(500).json({ error: 'Failed to parse opportunity data' });
+    }
+  });
+});
+
+app.post('/api/ideas/submit', (req, res) => {
+  console.log('Received idea submission:', req.body);
+  
+  const { 
+    title, 
+    description, 
+    category, 
+    target_audience, 
+    pain_points, 
+    features, 
+    competitor_urls, 
+    monetization_model, 
+    estimated_budget,
+    submitter_email 
+  } = req.body;
+  
+  // Validate required fields
+  if (!title || !description || !category) {
+    return res.status(400).json({ 
+      success: false, 
+      message: 'Title, description, and category are required' 
+    });
+  }
+  
+  // Insert into database
+  const query = `
+    INSERT INTO user_submitted_ideas (
+      title, 
+      description, 
+      category, 
+      target_audience, 
+      pain_points, 
+      features, 
+      competitor_urls, 
+      monetization_model, 
+      estimated_budget,
+      submitter_email,
+      created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `;
+  
+  db.run(
+    query, 
+    [
+      title, 
+      description, 
+      category, 
+      target_audience, 
+      JSON.stringify(pain_points || []), 
+      JSON.stringify(features || []), 
+      JSON.stringify(competitor_urls || []), 
+      monetization_model, 
+      estimated_budget || 0,
+      submitter_email || ''
+    ], 
+    function(err) {
+      if (err) {
+        console.error('Database error:', err);
+        return res.status(500).json({ 
+          success: false, 
+          message: 'Failed to submit idea: ' + err.message 
+        });
+      }
+      
+      res.json({ 
+        success: true, 
+        message: 'Idea submitted successfully!',
+        id: this.lastID
+      });
+    }
+  );
 });
 
 // Serve static assets in production
