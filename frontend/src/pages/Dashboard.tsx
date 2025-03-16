@@ -11,14 +11,13 @@ import {
   Button,
   CircularProgress,
   Alert,
-  Paper,
-  Divider,
-  Tabs,
-  Tab,
+  IconButton,
+  alpha,
+  Avatar,
+  LinearProgress,
   useTheme,
   useMediaQuery,
-  IconButton,
-  alpha
+  Skeleton
 } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import CategoryIcon from '@mui/icons-material/Category';
@@ -26,11 +25,11 @@ import ShowChartIcon from '@mui/icons-material/ShowChart';
 import PieChartIcon from '@mui/icons-material/PieChart';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
+import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
+import PeopleOutlineOutlinedIcon from '@mui/icons-material/PeopleOutlineOutlined';
 import { getDashboardStats, getTopTrendingTopics, getTopicById } from '../services/api';
-import { DashboardStats, RedditTopic } from '../types';
-import PainPointsComponent from '../components/PainPointsComponent';
-import SolutionRequestsComponent from '../components/SolutionRequestsComponent';
-import AppIdeasComponent from '../components/AppIdeasComponent';
+import { DashboardStats, RedditTopic, PainPoint, SolutionRequest, AppIdea } from '../types';
 
 // Interface for the tab panel props
 interface TabPanelProps {
@@ -51,47 +50,40 @@ const TabPanel = (props: TabPanelProps) => {
       aria-labelledby={`topic-tab-${index}`}
       {...other}
     >
-      {value === index && (
-        <Box sx={{ p: 1 }}>
-          {children}
-        </Box>
-      )}
+      {value === index && <Box sx={{ pt: 2 }}>{children}</Box>}
     </div>
   );
 };
 
+// Dashboard component
 const Dashboard: React.FC = () => {
-  const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isTablet = useMediaQuery(theme.breakpoints.down('lg'));
+  const topicsScrollRef = useRef<HTMLDivElement>(null);
   
-  // State for dashboard data
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [trendingTopics, setTrendingTopics] = useState<RedditTopic[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // State for topic details
-  const [topicDetails, setTopicDetails] = useState<Record<number, RedditTopic>>({});
-  const [loadingTopics, setLoadingTopics] = useState<Record<number, boolean>>({});
-  const [tabValues, setTabValues] = useState<Record<number, number>>({});
+  const [tabValues, setTabValues] = useState<{ [key: number]: number }>({});
+  const [topicDetails, setTopicDetails] = useState<{ [key: number]: any }>({});
+  const [loadingTopics, setLoadingTopics] = useState<{ [key: number]: boolean }>({});
+  const [canScrollLeft, setCanScrollLeft] = useState<boolean>(false);
+  const [canScrollRight, setCanScrollRight] = useState<boolean>(true);
 
-  // Custom theme colors
-  const primaryBlue = theme.palette.primary.main;
-  const lightBlue = alpha(theme.palette.primary.main, 0.1);
-  const mediumBlue = alpha(theme.palette.primary.main, 0.5);
-
-  // Scroll handlers for horizontal scrolling
+  // Handle scroll left for trending topics
   const handleScrollLeft = () => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollBy({ left: -300, behavior: 'smooth' });
+    if (topicsScrollRef.current) {
+      topicsScrollRef.current.scrollBy({ left: -300, behavior: 'smooth' });
     }
   };
 
+  // Handle scroll right for trending topics
   const handleScrollRight = () => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+    if (topicsScrollRef.current) {
+      topicsScrollRef.current.scrollBy({ left: 300, behavior: 'smooth' });
     }
   };
 
@@ -100,80 +92,102 @@ const Dashboard: React.FC = () => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-        const [statsData, topicsData] = await Promise.all([
-          getDashboardStats(),
-          getTopTrendingTopics(10)
-        ]);
+        const statsData = await getDashboardStats();
+        const topicsData = await getTopTrendingTopics();
+        
+        // Use actual data from API without default values
         setStats(statsData);
         setTrendingTopics(topicsData);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching dashboard data:', err);
-        setError('Failed to load dashboard data. Please try again later.');
-      } finally {
+        
+        // Initialize tab values
+        const initialTabValues: { [key: number]: number } = {};
+        topicsData.forEach(topic => {
+          initialTabValues[topic.id] = 0;
+        });
+        setTabValues(initialTabValues);
+        
         setLoading(false);
+      } catch (err) {
+        setError('Failed to load dashboard data. Please try again later.');
+        setLoading(false);
+        console.error('Error fetching dashboard data:', err);
       }
     };
 
     fetchDashboardData();
   }, []);
 
-  // Fetch topic details for all trending topics
+  // Fetch topic details for each trending topic
   useEffect(() => {
     const fetchAllTopicDetails = async () => {
       if (trendingTopics.length === 0) return;
       
-      // Create a map of topic IDs to track loading state
-      const loadingMap: Record<number, boolean> = {};
-      trendingTopics.forEach(topic => {
-        loadingMap[topic.id] = true;
-      });
-      
-      setLoadingTopics(loadingMap);
-      
-      // Initialize tab values for all topics
-      const initialTabValues: Record<number, number> = {};
-      trendingTopics.forEach(topic => {
-        initialTabValues[topic.id] = 0;
-      });
-      
-      setTabValues(initialTabValues);
-      
-      // Fetch details for all topics in parallel
       try {
-        const detailsPromises = trendingTopics.map(topic => getTopicById(topic.id));
-        const topicsDetailsArray = await Promise.all(detailsPromises);
-        
-        // Convert array of topic details to a record object
-        const topicsDetailsRecord: Record<number, RedditTopic> = {};
-        topicsDetailsArray.forEach(topicDetail => {
-          topicsDetailsRecord[topicDetail.id] = topicDetail;
+        // Initialize loading state for each topic
+        const initialLoadingState: { [key: number]: boolean } = {};
+        trendingTopics.forEach(topic => {
+          initialLoadingState[topic.id] = true;
         });
+        setLoadingTopics(initialLoadingState);
         
-        setTopicDetails(topicsDetailsRecord);
+        const details: { [key: number]: any } = {};
+        
+        for (const topic of trendingTopics) {
+          const topicData = await getTopicById(topic.id);
+          details[topic.id] = topicData;
+          
+          // Update loading state for this topic
+          setLoadingTopics(prev => ({
+            ...prev,
+            [topic.id]: false
+          }));
+        }
+        
+        setTopicDetails(details);
+        setLoading(false);
       } catch (err) {
         console.error('Error fetching topic details:', err);
-        setError('Failed to load some topic details. Please try again later.');
-      } finally {
-        // Set all topics as loaded
-        const completedLoadingMap: Record<number, boolean> = {};
-        trendingTopics.forEach(topic => {
-          completedLoadingMap[topic.id] = false;
-        });
+        setLoading(false);
         
-        setLoadingTopics(completedLoadingMap);
+        // Mark all topics as not loading on error
+        const resetLoadingState: { [key: number]: boolean } = {};
+        trendingTopics.forEach(topic => {
+          resetLoadingState[topic.id] = false;
+        });
+        setLoadingTopics(resetLoadingState);
       }
     };
-    
+
     fetchAllTopicDetails();
   }, [trendingTopics]);
 
-  // Handle tab change
+  // Check if scroll buttons should be visible
+  useEffect(() => {
+    const checkScroll = () => {
+      if (topicsScrollRef.current) {
+        const { scrollLeft, scrollWidth, clientWidth } = topicsScrollRef.current;
+        setCanScrollLeft(scrollLeft > 0);
+        setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 10);
+      }
+    };
+
+    // Initial check
+    checkScroll();
+
+    // Add scroll event listener
+    const scrollContainer = topicsScrollRef.current;
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', checkScroll);
+      return () => scrollContainer.removeEventListener('scroll', checkScroll);
+    }
+  }, [trendingTopics]);
+
+  // Handle tab change for a specific topic
   const handleTabChange = (topicId: number, newValue: number) => {
-    setTabValues({
-      ...tabValues,
+    setTabValues(prev => ({
+      ...prev,
       [topicId]: newValue
-    });
+    }));
   };
 
   // Navigate to topic detail page
@@ -181,635 +195,744 @@ const Dashboard: React.FC = () => {
     navigate(`/topics/${topicId}`);
   };
 
-  if (loading) {
+  if (loading && trendingTopics.length === 0) {
     return (
-      <Container sx={{ mt: 4, textAlign: 'center' }}>
-        <CircularProgress sx={{ color: primaryBlue }} />
-        <Typography variant="body1" sx={{ mt: 2, color: 'text.secondary' }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
+        <CircularProgress size={60} sx={{ mb: 3 }} />
+        <Typography variant="h6" color="text.secondary">
           Loading dashboard data...
         </Typography>
-      </Container>
+      </Box>
     );
   }
 
   if (error) {
     return (
-      <Container sx={{ mt: 4 }}>
+      <Container maxWidth="lg" sx={{ mt: 4 }}>
         <Alert severity="error">{error}</Alert>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 8 }}>
-      <Typography 
-        variant="h4" 
-        component="h1" 
-        gutterBottom 
-        sx={{ 
-          fontWeight: 300, 
-          color: primaryBlue,
-          mb: 4
-        }}
-      >
-        Idea Engine Dashboard
-      </Typography>
-      
-      {/* Stats Overview */}
-      <Grid container spacing={3} sx={{ mb: 5 }}>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
+      {/* Page Header */}
+      <Box sx={{ mb: 4, textAlign: 'center' }}>
+        <Typography variant="h3" component="h1" fontWeight={700} gutterBottom sx={{ color: theme.palette.primary.main }}>
+          Discover Validated SaaS Idea from real conversations
+        </Typography>
+        <Typography variant="h6" color="text.secondary" sx={{ maxWidth: '800px', mx: 'auto', mb: 1 }}>
+          Get instant insights into pain points, solution requests and app ideas that users are actively searching for
+        </Typography>
+      </Box>
+
+      {/* Stats Cards */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
           <Card 
-            elevation={0} 
             sx={{ 
-              borderRadius: 4, 
-              backgroundColor: lightBlue,
+              height: '100%', 
+              borderRadius: 3,
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
               transition: 'transform 0.2s, box-shadow 0.2s',
               '&:hover': {
-                transform: 'translateY(-5px)',
-                boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+                transform: 'translateY(-4px)',
+                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
               }
             }}
           >
-            <CardContent>
-              <Typography color="text.secondary" gutterBottom>
-                Total Topics
-              </Typography>
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                    Total Topics
+                  </Typography>
+                  {loading && !stats ? (
+                    <Skeleton variant="text" width={60} height={40} />
+                  ) : (
+                    <Typography variant="h4" component="div" fontWeight={700} sx={{ mt: 0.5 }}>
+                      {stats?.totalTopics || 0}
+                    </Typography>
+                  )}
+                </Box>
+                <Avatar 
+                  sx={{ 
+                    bgcolor: alpha(theme.palette.primary.main, 0.1),
+                    color: theme.palette.primary.main,
+                    width: 48,
+                    height: 48
+                  }}
+                >
+                  <CategoryIcon />
+                </Avatar>
+              </Box>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <PieChartIcon sx={{ mr: 1, color: primaryBlue }} />
-                <Typography variant="h5" component="div" sx={{ fontWeight: 500, color: primaryBlue }}>
-                  {stats?.totalTopics || stats?.total_topics || 0}
-                </Typography>
+                {loading && !stats ? (
+                  <Skeleton variant="text" width={100} height={24} />
+                ) : (
+                  <>
+                    <Chip 
+                      icon={<TrendingUpIcon sx={{ fontSize: '0.85rem !important' }} />} 
+                      label={`+${stats?.topicsGrowth || 0}%`} 
+                      size="small" 
+                      sx={{ 
+                        bgcolor: alpha(theme.palette.success.main, 0.1), 
+                        color: theme.palette.success.main,
+                        fontWeight: 500,
+                        fontSize: '0.75rem',
+                        height: 24
+                      }} 
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                      vs last month
+                    </Typography>
+                  </>
+                )}
               </Box>
             </CardContent>
           </Card>
         </Grid>
-        
+
         <Grid item xs={12} sm={6} md={3}>
           <Card 
-            elevation={0} 
             sx={{ 
-              borderRadius: 4, 
-              backgroundColor: lightBlue,
+              height: '100%', 
+              borderRadius: 3,
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
               transition: 'transform 0.2s, box-shadow 0.2s',
               '&:hover': {
-                transform: 'translateY(-5px)',
-                boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+                transform: 'translateY(-4px)',
+                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
               }
             }}
           >
-            <CardContent>
-              <Typography color="text.secondary" gutterBottom>
-                Trending Topics
-              </Typography>
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                    Total Posts
+                  </Typography>
+                  {loading && !stats ? (
+                    <Skeleton variant="text" width={60} height={40} />
+                  ) : (
+                    <Typography variant="h4" component="div" fontWeight={700} sx={{ mt: 0.5 }}>
+                      {stats?.totalPosts || 0}
+                    </Typography>
+                  )}
+                </Box>
+                <Avatar 
+                  sx={{ 
+                    bgcolor: alpha(theme.palette.secondary.main, 0.1),
+                    color: theme.palette.secondary.main,
+                    width: 48,
+                    height: 48
+                  }}
+                >
+                  <ShowChartIcon />
+                </Avatar>
+              </Box>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <TrendingUpIcon sx={{ mr: 1, color: primaryBlue }} />
-                <Typography variant="h5" component="div" sx={{ fontWeight: 500, color: primaryBlue }}>
-                  {stats?.trendingTopics || 0}
-                </Typography>
+                {loading && !stats ? (
+                  <Skeleton variant="text" width={100} height={24} />
+                ) : (
+                  <>
+                    <Chip 
+                      icon={<TrendingUpIcon sx={{ fontSize: '0.85rem !important' }} />} 
+                      label={`+${stats?.postsGrowth || 0}%`} 
+                      size="small" 
+                      sx={{ 
+                        bgcolor: alpha(theme.palette.success.main, 0.1), 
+                        color: theme.palette.success.main,
+                        fontWeight: 500,
+                        fontSize: '0.75rem',
+                        height: 24
+                      }} 
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                      vs last month
+                    </Typography>
+                  </>
+                )}
               </Box>
             </CardContent>
           </Card>
         </Grid>
-        
+
         <Grid item xs={12} sm={6} md={3}>
           <Card 
-            elevation={0} 
             sx={{ 
-              borderRadius: 4, 
-              backgroundColor: lightBlue,
+              height: '100%', 
+              borderRadius: 3,
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
               transition: 'transform 0.2s, box-shadow 0.2s',
               '&:hover': {
-                transform: 'translateY(-5px)',
-                boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+                transform: 'translateY(-4px)',
+                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
               }
             }}
           >
-            <CardContent>
-              <Typography color="text.secondary" gutterBottom>
-                Categories
-              </Typography>
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                    Opportunities
+                  </Typography>
+                  {loading && !stats ? (
+                    <Skeleton variant="text" width={60} height={40} />
+                  ) : (
+                    <Typography variant="h4" component="div" fontWeight={700} sx={{ mt: 0.5 }}>
+                      {stats?.totalOpportunities || 0}
+                    </Typography>
+                  )}
+                </Box>
+                <Avatar 
+                  sx={{ 
+                    bgcolor: alpha(theme.palette.info.main, 0.1),
+                    color: theme.palette.info.main,
+                    width: 48,
+                    height: 48
+                  }}
+                >
+                  <PieChartIcon />
+                </Avatar>
+              </Box>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <CategoryIcon sx={{ mr: 1, color: primaryBlue }} />
-                <Typography variant="h5" component="div" sx={{ fontWeight: 500, color: primaryBlue }}>
-                  {stats?.totalCategories || 0}
-                </Typography>
+                {loading && !stats ? (
+                  <Skeleton variant="text" width={100} height={24} />
+                ) : (
+                  <>
+                    <Chip 
+                      icon={<TrendingUpIcon sx={{ fontSize: '0.85rem !important' }} />} 
+                      label={`+${stats?.opportunitiesGrowth || 0}%`} 
+                      size="small" 
+                      sx={{ 
+                        bgcolor: alpha(theme.palette.success.main, 0.1), 
+                        color: theme.palette.success.main,
+                        fontWeight: 500,
+                        fontSize: '0.75rem',
+                        height: 24
+                      }} 
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                      vs last month
+                    </Typography>
+                  </>
+                )}
               </Box>
             </CardContent>
           </Card>
         </Grid>
-        
+
         <Grid item xs={12} sm={6} md={3}>
           <Card 
-            elevation={0} 
             sx={{ 
-              borderRadius: 4, 
-              backgroundColor: lightBlue,
+              height: '100%', 
+              borderRadius: 3,
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
               transition: 'transform 0.2s, box-shadow 0.2s',
               '&:hover': {
-                transform: 'translateY(-5px)',
-                boxShadow: '0 8px 16px rgba(0,0,0,0.1)'
+                transform: 'translateY(-4px)',
+                boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
               }
             }}
           >
-            <CardContent>
-              <Typography color="text.secondary" gutterBottom>
-                Avg. Growth Rate
-              </Typography>
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary" fontWeight={500}>
+                    Engagement Rate
+                  </Typography>
+                  {loading && !stats ? (
+                    <Skeleton variant="text" width={60} height={40} />
+                  ) : (
+                    <Typography variant="h4" component="div" fontWeight={700} sx={{ mt: 0.5 }}>
+                      {stats?.averageEngagement || 0}%
+                    </Typography>
+                  )}
+                </Box>
+                <Avatar 
+                  sx={{ 
+                    bgcolor: alpha(theme.palette.warning.main, 0.1),
+                    color: theme.palette.warning.main,
+                    width: 48,
+                    height: 48
+                  }}
+                >
+                  <PeopleOutlineOutlinedIcon />
+                </Avatar>
+              </Box>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <ShowChartIcon sx={{ mr: 1, color: primaryBlue }} />
-                <Typography variant="h5" component="div" sx={{ fontWeight: 500, color: primaryBlue }}>
-                  {stats?.averageGrowthRate || stats?.avg_growth || 0}%
-                </Typography>
+                {loading && !stats ? (
+                  <Skeleton variant="text" width={100} height={24} />
+                ) : (
+                  <>
+                    <Chip 
+                      icon={<TrendingUpIcon sx={{ fontSize: '0.85rem !important' }} />} 
+                      label={`+${stats?.engagementGrowth || 0}%`} 
+                      size="small" 
+                      sx={{ 
+                        bgcolor: alpha(theme.palette.success.main, 0.1), 
+                        color: theme.palette.success.main,
+                        fontWeight: 500,
+                        fontSize: '0.75rem',
+                        height: 24
+                      }} 
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                      vs last month
+                    </Typography>
+                  </>
+                )}
               </Box>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
-      
-      {/* Trending Topics with Horizontal Scrolling */}
-      <Paper 
-        elevation={0} 
-        sx={{ 
-          p: 3, 
-          mb: 5, 
-          borderRadius: 4,
-          backgroundColor: 'white',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
-        }}
-      >
+
+      {/* Trending Topics Section */}
+      <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Box>
-            <Typography 
-              variant="h5" 
-              component="h2" 
-              gutterBottom 
-              sx={{ fontWeight: 500, color: primaryBlue }}
-            >
-              Trending Topics with Insights
-            </Typography>
-            <Typography variant="body2" color="text.secondary" paragraph>
-              Explore trending topics with their pain points, solution requests, and app ideas.
-            </Typography>
-          </Box>
-          
-          <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
+          <Typography variant="h5" component="h2" fontWeight={600}>
+            Trending Topics
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
             <IconButton 
+              size="small" 
               onClick={handleScrollLeft} 
+              disabled={!canScrollLeft || loading}
               sx={{ 
-                backgroundColor: lightBlue, 
-                mr: 1,
-                '&:hover': { backgroundColor: mediumBlue }
+                bgcolor: 'background.paper', 
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                '&.Mui-disabled': {
+                  bgcolor: 'action.disabledBackground',
+                }
               }}
             >
-              <ArrowBackIcon sx={{ color: primaryBlue }} />
+              <ArrowBackIcon fontSize="small" />
             </IconButton>
             <IconButton 
+              size="small" 
               onClick={handleScrollRight} 
+              disabled={!canScrollRight || loading}
               sx={{ 
-                backgroundColor: lightBlue,
-                '&:hover': { backgroundColor: mediumBlue }
+                bgcolor: 'background.paper', 
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+                '&.Mui-disabled': {
+                  bgcolor: 'action.disabledBackground',
+                }
               }}
             >
-              <ArrowForwardIcon sx={{ color: primaryBlue }} />
+              <ArrowForwardIcon fontSize="small" />
             </IconButton>
           </Box>
         </Box>
-        
-        <Divider sx={{ mb: 3 }} />
-        
-        {trendingTopics.length > 0 ? (
-          <Box 
-            ref={scrollContainerRef}
-            sx={{ 
-              display: 'flex', 
-              overflowX: 'auto', 
-              pb: 2,
-              scrollbarWidth: 'none', // Firefox
-              '&::-webkit-scrollbar': { // Chrome, Safari, Edge
-                display: 'none'
-              },
-              '-ms-overflow-style': 'none', // IE
-              scrollSnapType: 'x mandatory'
-            }}
-          >
-            {trendingTopics.map((topic) => (
+
+        {/* Scrollable topics container */}
+        <Box
+          ref={topicsScrollRef}
+          sx={{
+            display: 'flex',
+            overflowX: 'auto',
+            pb: 2,
+            scrollbarWidth: 'none', // Firefox
+            '&::-webkit-scrollbar': { // Chrome, Safari, Edge
+              display: 'none'
+            },
+            gap: 3
+          }}
+        >
+          {loading && trendingTopics.length === 0 ? (
+            // Show skeleton loaders while loading
+            Array.from(new Array(4)).map((_, index) => (
               <Card 
-                key={topic.id} 
-                variant="outlined" 
+                key={index} 
                 sx={{ 
-                  minWidth: { xs: '85%', sm: '400px', md: '450px' },
-                  maxWidth: { xs: '85%', sm: '400px', md: '450px' },
-                  mr: 2,
-                  mb: 1,
+                  minWidth: 450, 
+                  maxWidth: 500, 
+                  width: '100%',
                   borderRadius: 3,
-                  border: 'none',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-                  scrollSnapAlign: 'start',
-                  transition: 'transform 0.2s, box-shadow 0.2s',
-                  '&:hover': {
-                    transform: 'translateY(-5px)',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.1)'
-                  }
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)'
                 }}
               >
-                <CardContent>
-                  {/* Topic Header */}
-                  <Box sx={{ mb: 2 }}>
-                    <Typography 
-                      variant="h6" 
-                      sx={{ 
-                        fontWeight: 500, 
-                        color: primaryBlue,
-                        mb: 1
-                      }}
-                    >
-                      {topic.title || topic.name}
-                    </Typography>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Chip 
-                        label={topic.category} 
-                        size="small" 
-                        sx={{ 
-                          borderRadius: '16px', 
-                          backgroundColor: lightBlue,
-                          color: primaryBlue,
-                          fontWeight: 500
-                        }} 
-                      />
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <TrendingUpIcon sx={{ mr: 0.5, fontSize: '1rem', color: primaryBlue }} />
-                        <Typography variant="body2" sx={{ fontWeight: 500, color: primaryBlue }}>
-                          {topic.growth_percentage || topic.growthRate || 0}% growth
-                        </Typography>
-                      </Box>
-                    </Box>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                    <Skeleton variant="text" width={200} height={32} />
+                    <Skeleton variant="circular" width={24} height={24} />
                   </Box>
                   
-                  {/* Topic Content */}
-                  {loadingTopics[topic.id] ? (
-                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                      <CircularProgress size={30} sx={{ color: primaryBlue }} />
-                    </Box>
-                  ) : (
-                    <>
-                      <Box sx={{ 
-                        borderBottom: 1, 
-                        borderColor: 'divider', 
-                        mb: 2,
-                        '& .MuiTabs-indicator': {
-                          backgroundColor: primaryBlue
-                        }
-                      }}>
-                        <Tabs 
-                          value={tabValues[topic.id] || 0} 
-                          onChange={(_, newValue) => handleTabChange(topic.id, newValue)}
-                          variant="fullWidth"
-                          sx={{
-                            '& .MuiTab-root': {
-                              textTransform: 'none',
-                              fontWeight: 500,
-                              color: 'text.secondary',
-                              '&.Mui-selected': {
-                                color: primaryBlue
-                              }
-                            }
-                          }}
-                        >
-                          <Tab label="Pain Points" />
-                          <Tab label="Solution Requests" />
-                          <Tab label="App Ideas" />
-                        </Tabs>
-                      </Box>
-                      
-                      <Box sx={{ height: '250px', overflowY: 'auto', mb: 2, pr: 1 }}>
-                        <TabPanel value={tabValues[topic.id] || 0} index={0}>
-                          <PainPointsComponent 
-                            painPoints={topicDetails[topic.id]?.pain_points || []} 
-                            variant="default"
-                            maxItems={5}
-                          />
-                        </TabPanel>
-                        
-                        <TabPanel value={tabValues[topic.id] || 0} index={1}>
-                          <SolutionRequestsComponent 
-                            solutionRequests={topicDetails[topic.id]?.solution_requests || []} 
-                            variant="default"
-                            maxItems={5}
-                          />
-                        </TabPanel>
-                        
-                        <TabPanel value={tabValues[topic.id] || 0} index={2}>
-                          <AppIdeasComponent 
-                            appIdeas={topicDetails[topic.id]?.app_ideas || []} 
-                            variant="default"
-                            maxItems={5}
-                          />
-                        </TabPanel>
-                      </Box>
-                      
-                      <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <Button 
-                          variant="contained" 
-                          onClick={() => handleViewFullDetails(topic.id)}
-                          endIcon={<ArrowForwardIcon />}
-                          sx={{ 
-                            borderRadius: '24px',
-                            textTransform: 'none',
-                            boxShadow: 'none',
-                            backgroundColor: primaryBlue,
-                            '&:hover': {
-                              backgroundColor: mediumBlue,
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                            }
-                          }}
-                        >
-                          View Details
-                        </Button>
-                      </Box>
-                    </>
-                  )}
+                  <Box sx={{ mb: 2 }}>
+                    <Skeleton variant="text" width={120} height={20} sx={{ mb: 1 }} />
+                    <Skeleton variant="rectangular" height={8} width="100%" sx={{ borderRadius: 4, mb: 0.5 }} />
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                    <Skeleton variant="rectangular" width={80} height={24} sx={{ borderRadius: 6 }} />
+                    <Skeleton variant="rectangular" width={80} height={24} sx={{ borderRadius: 6 }} />
+                    <Skeleton variant="rectangular" width={80} height={24} sx={{ borderRadius: 6 }} />
+                  </Box>
+                  
+                  <Skeleton variant="text" width={100} height={24} sx={{ mb: 2 }} />
+                  
+                  <Box sx={{ mb: 2 }}>
+                    <Skeleton variant="text" width={100} height={24} sx={{ mb: 1 }} />
+                    <Skeleton variant="text" width="100%" height={20} sx={{ mb: 0.5 }} />
+                    <Skeleton variant="text" width="100%" height={20} sx={{ mb: 0.5 }} />
+                    <Skeleton variant="text" width="80%" height={20} />
+                  </Box>
+                  
+                  <Box sx={{ mb: 2 }}>
+                    <Skeleton variant="text" width={140} height={24} sx={{ mb: 1 }} />
+                    <Skeleton variant="text" width="100%" height={20} sx={{ mb: 0.5 }} />
+                    <Skeleton variant="text" width="100%" height={20} sx={{ mb: 0.5 }} />
+                    <Skeleton variant="text" width="70%" height={20} />
+                  </Box>
+                  
+                  <Box>
+                    <Skeleton variant="text" width={80} height={24} sx={{ mb: 1 }} />
+                    <Skeleton variant="text" width="100%" height={20} sx={{ mb: 0.5 }} />
+                    <Skeleton variant="text" width="90%" height={20} sx={{ mb: 0.5 }} />
+                    <Skeleton variant="text" width="60%" height={20} />
+                  </Box>
                 </CardContent>
               </Card>
-            ))}
-          </Box>
-        ) : (
-          <Alert 
-            severity="info" 
-            sx={{ 
-              borderRadius: 3,
-              backgroundColor: lightBlue,
-              color: primaryBlue
-            }}
-          >
-            No trending topics found. Check back later for updates.
-          </Alert>
-        )}
-      </Paper>
-      
-      {/* All Insights at a Glance */}
-      <Paper 
-        elevation={0} 
-        sx={{ 
-          p: 3, 
-          mb: 5, 
-          borderRadius: 4,
-          backgroundColor: 'white',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
-        }}
-      >
-        <Typography 
-          variant="h5" 
-          component="h2" 
-          gutterBottom 
-          sx={{ fontWeight: 500, color: primaryBlue }}
+            ))
+          ) : (
+            trendingTopics.map((topic) => {
+              // Get detailed data for this topic
+              const topicDetail = topicDetails[topic.id];
+              const isTopicLoading = loadingTopics[topic.id];
+              
+              return (
+                <Card 
+                  key={topic.id} 
+                  onClick={() => handleViewFullDetails(topic.id)}
+                  sx={{ 
+                    minWidth: 450, 
+                    maxWidth: 500, 
+                    width: '100%',
+                    borderRadius: 3,
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                    cursor: 'pointer',
+                    '&:hover': {
+                      transform: 'translateY(-4px)',
+                      boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
+                    }
+                  }}
+                >
+                  <CardContent sx={{ p: 3 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                      <Box>
+                        <Typography variant="h6" component="div" fontWeight={600} noWrap>
+                        {topicDetail?.category || topic.category || 'Trending Topic'}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                          {topicDetail?.mention_count || topic.mention_count || '0'} mentions
+                        </Typography>
+                      </Box>
+                      <IconButton size="small">
+                        <MoreHorizIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                    
+                    {isTopicLoading ? (
+                      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 10 }}>
+                        <CircularProgress size={40} />
+                      </Box>
+                    ) : (
+                      <>
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            Engagement Score
+                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                            <Box sx={{ flexGrow: 1, mr: 1 }}>
+                              <LinearProgress 
+                                variant="determinate" 
+                                value={topicDetail?.opportunity_score || topic.score || 0} 
+                                sx={{ 
+                                  height: 8, 
+                                  borderRadius: 4,
+                                  bgcolor: alpha(theme.palette.primary.main, 0.1),
+                                  '& .MuiLinearProgress-bar': {
+                                    borderRadius: 4,
+                                    bgcolor: theme.palette.primary.main,
+                                  }
+                                }} 
+                              />
+                            </Box>
+                            <Typography variant="body2" fontWeight={600}>
+                              {topicDetail?.opportunity_score || topic.score || 0}%
+                            </Typography>
+                          </Box>
+                        </Box>
+                        
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                          {/* Use keywords from topicDetail if available */}
+                          {((topicDetail?.keywords || topic.keywords) || []).slice(0, 3).map((keyword: string, idx: number) => (
+                            <Chip 
+                              key={idx} 
+                              label={keyword} 
+                              size="small" 
+                              sx={{ 
+                                bgcolor: alpha(theme.palette.primary.main, 0.1), 
+                                color: theme.palette.primary.main,
+                                fontWeight: 500,
+                                fontSize: '0.75rem'
+                              }} 
+                            />
+                          ))}
+                          {((topicDetail?.keywords || topic.keywords) || []).length > 3 && (
+                            <Chip 
+                              label={`+${(topicDetail?.keywords || topic.keywords || []).length - 3}`} 
+                              size="small" 
+                              sx={{ 
+                                bgcolor: alpha(theme.palette.grey[500], 0.1), 
+                                color: theme.palette.text.secondary,
+                                fontWeight: 500,
+                                fontSize: '0.75rem'
+                              }} 
+                            />
+                          )}
+                        </Box>
+                        
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                          <TrendingUpOutlinedIcon 
+                            fontSize="small" 
+                            sx={{ color: theme.palette.success.main, mr: 0.5 }} 
+                          />
+                          <Typography variant="body2" fontWeight={500} color="success.main">
+                            {topicDetail?.growth_percentage || topic.trend || 0}% this week
+                          </Typography>
+                        </Box>
+                        
+                        {/* Pain Points Section */}
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+                            Pain Points
+                          </Typography>
+                          <Box sx={{ maxHeight: 120, overflowY: 'auto', pr: 1 }}>
+                            {(topicDetail?.pain_points && topicDetail.pain_points.length > 0) ? (
+                              topicDetail.pain_points.slice(0, 3).map((point: PainPoint, idx: number) => (
+                                <Box key={idx} sx={{ mb: 1, display: 'flex', alignItems: 'flex-start' }}>
+                                  <Box 
+                                    sx={{ 
+                                      width: 6, 
+                                      height: 6, 
+                                      borderRadius: '50%', 
+                                      bgcolor: 'error.main', 
+                                      mt: 0.8, 
+                                      mr: 1.5 
+                                    }} 
+                                  />
+                                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.4 }}>
+                                    {point.text}
+                                  </Typography>
+                                </Box>
+                              ))
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                No pain points recorded for this topic yet.
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                        
+                        {/* Solution Requests Section */}
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+                            Solution Requests
+                          </Typography>
+                          <Box sx={{ maxHeight: 120, overflowY: 'auto', pr: 1 }}>
+                            {(topicDetail?.solution_requests && topicDetail.solution_requests.length > 0) ? (
+                              topicDetail.solution_requests.slice(0, 3).map((request: SolutionRequest, idx: number) => (
+                                <Box key={idx} sx={{ mb: 1, display: 'flex', alignItems: 'flex-start' }}>
+                                  <Box 
+                                    sx={{ 
+                                      width: 6, 
+                                      height: 6, 
+                                      borderRadius: '50%', 
+                                      bgcolor: 'info.main', 
+                                      mt: 0.8, 
+                                      mr: 1.5 
+                                    }} 
+                                  />
+                                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.4 }}>
+                                    {request.text}
+                                  </Typography>
+                                </Box>
+                              ))
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                No solution requests recorded for this topic yet.
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                        
+                        {/* App Ideas Section */}
+                        <Box>
+                          <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
+                            App Ideas
+                          </Typography>
+                          <Box sx={{ maxHeight: 120, overflowY: 'auto', pr: 1 }}>
+                            {(topicDetail?.app_ideas && topicDetail.app_ideas.length > 0) ? (
+                              topicDetail.app_ideas.slice(0, 3).map((idea: AppIdea, idx: number) => (
+                                <Box key={idx} sx={{ mb: 1, display: 'flex', alignItems: 'flex-start' }}>
+                                  <Box 
+                                    sx={{ 
+                                      width: 6, 
+                                      height: 6, 
+                                      borderRadius: '50%', 
+                                      bgcolor: 'success.main', 
+                                      mt: 0.8, 
+                                      mr: 1.5 
+                                    }} 
+                                  />
+                                  <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.4 }}>
+                                    {idea.text || idea.title}
+                                  </Typography>
+                                </Box>
+                              ))
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                No app ideas recorded for this topic yet.
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        </Box>
+      </Box>
+
+      {/* View All Topics Button */}
+      <Box sx={{ display: 'flex', justifyContent: 'center', mb: 6 }}>
+        <Button 
+          variant="outlined" 
+          color="primary"
+          endIcon={<ArrowForwardIcon />}
+          onClick={() => navigate('/topics')}
+          sx={{ 
+            borderRadius: 2,
+            px: 3,
+            py: 1,
+            fontWeight: 500,
+            textTransform: 'none',
+            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.05)',
+            '&:hover': {
+              boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+            }
+          }}
         >
-          All Insights at a Glance
-        </Typography>
-        <Typography variant="body2" color="text.secondary" paragraph>
-          View all pain points, solution requests, and app ideas for trending topics in a single view.
-        </Typography>
-        
-        <Divider sx={{ mb: 3 }} />
-        
-        {trendingTopics.length > 0 ? (
-          <Grid container spacing={3}>
-            {/* Pain Points Section */}
-            <Grid item xs={12} md={4}>
-              <Typography 
-                variant="h6" 
-                gutterBottom 
-                sx={{ fontWeight: 500, color: primaryBlue }}
-              >
-                Top Pain Points
-              </Typography>
-              <Box sx={{ 
-                maxHeight: '500px', 
-                overflowY: 'auto', 
-                pr: 1,
-                scrollbarWidth: 'thin',
-                '&::-webkit-scrollbar': {
-                  width: '6px',
-                },
-                '&::-webkit-scrollbar-track': {
-                  backgroundColor: alpha(theme.palette.primary.main, 0.05),
-                  borderRadius: '10px'
-                },
-                '&::-webkit-scrollbar-thumb': {
-                  backgroundColor: mediumBlue,
-                  borderRadius: '10px'
-                }
-              }}>
-                {trendingTopics.map((topic) => (
-                  <Box key={`pain-${topic.id}`} sx={{ mb: 3 }}>
-                    <Typography 
-                      variant="subtitle1" 
-                      gutterBottom 
-                      sx={{ fontWeight: 500, color: primaryBlue }}
-                    >
-                      {topic.title || topic.name}
-                    </Typography>
-                    <PainPointsComponent 
-                      painPoints={topicDetails[topic.id]?.pain_points || []} 
-                      variant="compact"
-                      maxItems={3}
-                      title=""
-                    />
-                  </Box>
-                ))}
-              </Box>
-            </Grid>
-            
-            {/* Solution Requests Section */}
-            <Grid item xs={12} md={4}>
-              <Typography 
-                variant="h6" 
-                gutterBottom 
-                sx={{ fontWeight: 500, color: primaryBlue }}
-              >
-                Top Solution Requests
-              </Typography>
-              <Box sx={{ 
-                maxHeight: '500px', 
-                overflowY: 'auto', 
-                pr: 1,
-                scrollbarWidth: 'thin',
-                '&::-webkit-scrollbar': {
-                  width: '6px',
-                },
-                '&::-webkit-scrollbar-track': {
-                  backgroundColor: alpha(theme.palette.primary.main, 0.05),
-                  borderRadius: '10px'
-                },
-                '&::-webkit-scrollbar-thumb': {
-                  backgroundColor: mediumBlue,
-                  borderRadius: '10px'
-                }
-              }}>
-                {trendingTopics.map((topic) => (
-                  <Box key={`solution-${topic.id}`} sx={{ mb: 3 }}>
-                    <Typography 
-                      variant="subtitle1" 
-                      gutterBottom 
-                      sx={{ fontWeight: 500, color: primaryBlue }}
-                    >
-                      {topic.title || topic.name}
-                    </Typography>
-                    <SolutionRequestsComponent 
-                      solutionRequests={topicDetails[topic.id]?.solution_requests || []} 
-                      variant="compact"
-                      maxItems={3}
-                      title=""
-                    />
-                  </Box>
-                ))}
-              </Box>
-            </Grid>
-            
-            {/* App Ideas Section */}
-            <Grid item xs={12} md={4}>
-              <Typography 
-                variant="h6" 
-                gutterBottom 
-                sx={{ fontWeight: 500, color: primaryBlue }}
-              >
-                Top App Ideas
-              </Typography>
-              <Box sx={{ 
-                maxHeight: '500px', 
-                overflowY: 'auto', 
-                pr: 1,
-                scrollbarWidth: 'thin',
-                '&::-webkit-scrollbar': {
-                  width: '6px',
-                },
-                '&::-webkit-scrollbar-track': {
-                  backgroundColor: alpha(theme.palette.primary.main, 0.05),
-                  borderRadius: '10px'
-                },
-                '&::-webkit-scrollbar-thumb': {
-                  backgroundColor: mediumBlue,
-                  borderRadius: '10px'
-                }
-              }}>
-                {trendingTopics.map((topic) => (
-                  <Box key={`idea-${topic.id}`} sx={{ mb: 3 }}>
-                    <Typography 
-                      variant="subtitle1" 
-                      gutterBottom 
-                      sx={{ fontWeight: 500, color: primaryBlue }}
-                    >
-                      {topic.title || topic.name}
-                    </Typography>
-                    <AppIdeasComponent 
-                      appIdeas={topicDetails[topic.id]?.app_ideas || []} 
-                      variant="compact"
-                      maxItems={3}
-                      title=""
-                      onSelectIdea={() => handleViewFullDetails(topic.id)}
-                    />
-                  </Box>
-                ))}
-              </Box>
-            </Grid>
+          View All Topics
+        </Button>
+      </Box>
+
+      {/* Footer with Navigation and Contact Info */}
+      <Box sx={{ mt: 8, mb: 4, borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`, pt: 4 }}>
+        <Grid container spacing={4}>
+          <Grid item xs={12} md={4}>
+            <Typography variant="h6" fontWeight={600} gutterBottom>
+              SaaS Idea Engine
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              A powerful tool for discovering market opportunities and generating app ideas based on real user needs.
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Built by Rachmad Nafisholeh
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Email: <a href="mailto:rachmadnafisholeh@gmail.com" style={{ color: theme.palette.primary.main }}>rachmadnafisholeh@gmail.com</a>
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              GitHub: <a href="https://github.com/nafisholeh" target="_blank" rel="noopener noreferrer" style={{ color: theme.palette.primary.main }}>github.com/nafisholeh</a>
+            </Typography>
           </Grid>
-        ) : (
-          <Alert 
-            severity="info" 
-            sx={{ 
-              borderRadius: 3,
-              backgroundColor: lightBlue,
-              color: primaryBlue
-            }}
-          >
-            No trending topics found. Check back later for updates.
-          </Alert>
-        )}
-      </Paper>
-      
-      {/* Quick Links */}
-      <Paper 
-        elevation={0} 
-        sx={{ 
-          p: 3, 
-          borderRadius: 4,
-          backgroundColor: 'white',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
-        }}
-      >
-        <Typography 
-          variant="h5" 
-          component="h2" 
-          gutterBottom 
-          sx={{ fontWeight: 500, color: primaryBlue }}
-        >
-          Quick Navigation
-        </Typography>
-        <Grid container spacing={2}>
-          <Grid item xs={12} sm={6} md={4}>
-            <Button 
-              variant="contained" 
-              fullWidth 
-              onClick={() => navigate('/topics')}
-              sx={{ 
-                py: 2, 
-                borderRadius: '24px',
-                textTransform: 'none',
-                fontWeight: 500,
-                boxShadow: 'none',
-                backgroundColor: primaryBlue,
-                '&:hover': {
-                  backgroundColor: mediumBlue,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                }
-              }}
-            >
-              Explore All Topics
-            </Button>
-          </Grid>
-          <Grid item xs={12} sm={6} md={4}>
-            <Button 
-              variant="contained" 
-              fullWidth 
-              onClick={() => navigate('/market-analysis')}
-              sx={{ 
-                py: 2, 
-                borderRadius: '24px',
-                textTransform: 'none',
-                fontWeight: 500,
-                boxShadow: 'none',
-                backgroundColor: primaryBlue,
-                '&:hover': {
-                  backgroundColor: mediumBlue,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                }
-              }}
-            >
-              Market Analysis
-            </Button>
-          </Grid>
-          <Grid item xs={12} sm={6} md={4}>
-            <Button 
-              variant="contained" 
-              fullWidth 
-              onClick={() => navigate('/text-analysis')}
-              sx={{ 
-                py: 2, 
-                borderRadius: '24px',
-                textTransform: 'none',
-                fontWeight: 500,
-                boxShadow: 'none',
-                backgroundColor: primaryBlue,
-                '&:hover': {
-                  backgroundColor: mediumBlue,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                }
-              }}
-            >
-              Analyze Your Text
-            </Button>
+          <Grid item xs={12} md={8}>
+            <Grid container spacing={2}>
+              <Grid item xs={6} sm={4}>
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                  Explore
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Button 
+                    color="inherit" 
+                    onClick={() => navigate('/')}
+                    sx={{ justifyContent: 'flex-start', textTransform: 'none', color: 'text.secondary' }}
+                  >
+                    Dashboard
+                  </Button>
+                  <Button 
+                    color="inherit" 
+                    onClick={() => navigate('/topics')}
+                    sx={{ justifyContent: 'flex-start', textTransform: 'none', color: 'text.secondary' }}
+                  >
+                    Topic Explorer
+                  </Button>
+                  <Button 
+                    color="inherit" 
+                    onClick={() => navigate('/opportunities')}
+                    sx={{ justifyContent: 'flex-start', textTransform: 'none', color: 'text.secondary' }}
+                  >
+                    Opportunity Finder
+                  </Button>
+                </Box>
+              </Grid>
+              <Grid item xs={6} sm={4}>
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                  Analysis
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Button 
+                    color="inherit" 
+                    onClick={() => navigate('/market-analysis')}
+                    sx={{ justifyContent: 'flex-start', textTransform: 'none', color: 'text.secondary' }}
+                  >
+                    Market Analysis
+                  </Button>
+                  <Button 
+                    color="inherit" 
+                    onClick={() => navigate('/text-analysis')}
+                    sx={{ justifyContent: 'flex-start', textTransform: 'none', color: 'text.secondary' }}
+                  >
+                    Text Analysis
+                  </Button>
+                </Box>
+              </Grid>
+              <Grid item xs={6} sm={4}>
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                  Contribute
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Button 
+                    color="inherit" 
+                    onClick={() => navigate('/submit-idea')}
+                    sx={{ justifyContent: 'flex-start', textTransform: 'none', color: 'text.secondary' }}
+                  >
+                    Submit Idea
+                  </Button>
+                  <Button 
+                    color="inherit" 
+                    onClick={() => navigate('/about')}
+                    sx={{ justifyContent: 'flex-start', textTransform: 'none', color: 'text.secondary' }}
+                  >
+                    About
+                  </Button>
+                </Box>
+              </Grid>
+            </Grid>
           </Grid>
         </Grid>
-      </Paper>
+        <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 4 }}>
+          © {new Date().getFullYear()} Idea Engine. All rights reserved.
+        </Typography>
+      </Box>
     </Container>
   );
 };

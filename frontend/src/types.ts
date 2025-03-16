@@ -16,6 +16,9 @@ export interface RedditTopic {
   opportunity_score?: number;
   average_budget?: number;
   last_updated?: string | number;
+  score?: number;
+  keywords?: string[];
+  trend?: number;
 }
 
 export interface PainPoint {
@@ -63,6 +66,13 @@ export interface DashboardStats {
   total_mentions?: number;
   avg_growth?: number;
   top_categories?: any[];
+  topicsGrowth?: number;
+  totalPosts?: number;
+  postsGrowth?: number;
+  totalOpportunities?: number;
+  opportunitiesGrowth?: number;
+  averageEngagement?: number;
+  engagementGrowth?: number;
 }
 
 export interface FilterOptions {

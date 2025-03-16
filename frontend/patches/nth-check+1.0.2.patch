@@ -1,0 +1,8 @@
+{
+  "name": "nth-check",
+  "version": "2.1.1",
+  "description": "Parses and compiles CSS nth-checks",
+  "main": "index.js",
+  "scripts": {
+  }
+} 
