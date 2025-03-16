@@ -624,7 +624,7 @@ const Dashboard: React.FC = () => {
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
                       <Box>
                         <Typography variant="h6" component="div" fontWeight={600} noWrap>
-                        {topicDetail?.category || topic.category || 'Trending Topic'}
+                        {topicDetail?.title || topic.name || 'Trending Topic'}
                         </Typography>
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                           {topicDetail?.mention_count || topic.mention_count || '0'} mentions
