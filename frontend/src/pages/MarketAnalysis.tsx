@@ -12,23 +12,23 @@ import {
   Divider,
   useTheme
 } from '@mui/material';
-import { 
-  Chart as ChartJS, 
-  CategoryScale, 
-  LinearScale, 
-  PointElement, 
-  LineElement, 
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
   BarElement,
   ArcElement,
-  Title, 
-  Tooltip, 
-  Legend 
+  Title,
+  Tooltip,
+  Legend
 } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
-import { 
-  CategoryStat, 
-  DashboardStats, 
-  MarketAnalysisData 
+import {
+  CategoryStat,
+  DashboardStats,
+  MarketAnalysisData
 } from '../types';
 import { getDashboardStats, getMarketAnalysis } from '../services/api';
 
@@ -87,13 +87,13 @@ const MarketAnalysis: React.FC = () => {
           getMarketAnalysis(),
           getDashboardStats()
         ]);
-        
+
         // Convert growthTrends to monthlyGrowth for backward compatibility
         const updatedAnalysisData: MarketAnalysisData = {
           ...analysisData,
           monthlyGrowth: analysisData.growthTrends
         };
-        
+
         setMarketData(updatedAnalysisData);
         setStats(statsData);
         setLoading(false);
@@ -205,7 +205,7 @@ const MarketAnalysis: React.FC = () => {
         <Grid item xs={12} sm={6} md={3}>
           <Paper elevation={2} sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <Typography variant="h3" component="div" color="primary.main">
-              {stats?.total_topics || stats?.totalTopics || 0}
+              {stats?.totalTopics || 0}
             </Typography>
             <Typography variant="body1" color="text.secondary">
               Total Topics
@@ -215,17 +215,17 @@ const MarketAnalysis: React.FC = () => {
         <Grid item xs={12} sm={6} md={3}>
           <Paper elevation={2} sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <Typography variant="h3" component="div" color="primary.main">
-              {stats?.total_mentions ? stats.total_mentions.toLocaleString() : '0'}
+              {stats?.totalPosts ? stats.totalPosts.toLocaleString() : '0'}
             </Typography>
             <Typography variant="body1" color="text.secondary">
-              Total Mentions
+              Total Posts
             </Typography>
           </Paper>
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <Paper elevation={2} sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <Typography variant="h3" component="div" color="success.main">
-              {stats?.avg_growth || stats?.averageGrowthRate || 0}%
+              {stats?.averageGrowthRate || 0}%
             </Typography>
             <Typography variant="body1" color="text.secondary">
               Average Growth
@@ -235,7 +235,7 @@ const MarketAnalysis: React.FC = () => {
         <Grid item xs={12} sm={6} md={3}>
           <Paper elevation={2} sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <Typography variant="h3" component="div" color="primary.main">
-              {stats?.top_categories?.length || stats?.totalCategories || 0}
+              {stats?.totalCategories || 0}
             </Typography>
             <Typography variant="body1" color="text.secondary">
               Top Categories
@@ -247,9 +247,9 @@ const MarketAnalysis: React.FC = () => {
       {/* Tabs for different analyses */}
       <Paper elevation={3} sx={{ mb: 4 }}>
         <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs 
-            value={tabValue} 
-            onChange={handleTabChange} 
+          <Tabs
+            value={tabValue}
+            onChange={handleTabChange}
             aria-label="market analysis tabs"
             centered
           >
@@ -274,9 +274,9 @@ const MarketAnalysis: React.FC = () => {
             </Grid>
             <Grid item xs={12} md={6}>
               <Box sx={{ height: 400 }}>
-                <Bar 
-                  data={categoryChartData} 
-                  options={{ 
+                <Bar
+                  data={categoryChartData}
+                  options={{
                     maintainAspectRatio: false,
                     scales: {
                       y: {
@@ -293,7 +293,7 @@ const MarketAnalysis: React.FC = () => {
                         }
                       }
                     }
-                  }} 
+                  }}
                 />
               </Box>
             </Grid>
@@ -308,9 +308,9 @@ const MarketAnalysis: React.FC = () => {
             This chart shows the average growth percentage of topics over the past months, indicating overall market momentum.
           </Typography>
           <Box sx={{ height: 400 }}>
-            <Line 
-              data={growthChartData} 
-              options={{ 
+            <Line
+              data={growthChartData}
+              options={{
                 maintainAspectRatio: false,
                 scales: {
                   y: {
@@ -327,7 +327,7 @@ const MarketAnalysis: React.FC = () => {
                     }
                   }
                 }
-              }} 
+              }}
             />
           </Box>
         </TabPanel>
@@ -340,9 +340,9 @@ const MarketAnalysis: React.FC = () => {
             This chart shows the number of pain points mentioned in each category, helping identify where users are experiencing the most problems.
           </Typography>
           <Box sx={{ height: 400 }}>
-            <Bar 
-              data={painPointsChartData} 
-              options={{ 
+            <Bar
+              data={painPointsChartData}
+              options={{
                 maintainAspectRatio: false,
                 scales: {
                   y: {
@@ -359,7 +359,7 @@ const MarketAnalysis: React.FC = () => {
                     }
                   }
                 }
-              }} 
+              }}
             />
           </Box>
         </TabPanel>
@@ -480,4 +480,4 @@ const MarketAnalysis: React.FC = () => {
   );
 };
 
-export default MarketAnalysis; 
+export default MarketAnalysis;

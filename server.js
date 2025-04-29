@@ -44,10 +44,10 @@ app.use('/api/python', async (req, res) => {
   try {
     const pythonUrl = `${PYTHON_API_URL}${req.url}`;
     console.log(`Proxying request to Python API: ${pythonUrl}`);
-    
+
     const method = req.method.toLowerCase();
     let response;
-    
+
     if (method === 'get') {
       response = await axios.get(pythonUrl);
     } else if (method === 'post') {
@@ -59,18 +59,18 @@ app.use('/api/python', async (req, res) => {
     } else {
       return res.status(405).json({ error: 'Method not allowed' });
     }
-    
+
     res.status(response.status).json(response.data);
   } catch (error) {
     console.error('Python API proxy error:', error.message);
-    
+
     if (error.response) {
       // The request was made and the server responded with a status code
       // that falls out of the range of 2xx
       res.status(error.response.status).json(error.response.data);
     } else {
       // Something happened in setting up the request that triggered an Error
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Failed to connect to Python API',
         message: error.message
       });
@@ -91,11 +91,11 @@ app.get('/api/test', (req, res) => {
 
 app.get('/api/topics', (req, res) => {
   console.log('Received request for topics with query:', req.query);
-  
+
   const { category, timeframe, search } = req.query;
-  
+
   let query = `
-    SELECT 
+    SELECT
       id,
       name as title,
       category,
@@ -105,42 +105,42 @@ app.get('/api/topics', (req, res) => {
       opportunity_scores
     FROM reddit_topics
   `;
-  
+
   const params = [];
   const conditions = [];
-  
+
   if (category && category !== 'all') {
     conditions.push('category = ?');
     params.push(category);
   }
-  
+
   if (search) {
     conditions.push('(name LIKE ? OR category LIKE ?)');
     params.push(`%${search}%`, `%${search}%`);
   }
-  
+
   if (conditions.length > 0) {
     query += ' WHERE ' + conditions.join(' AND ');
   }
-  
+
   query += ' ORDER BY mention_count DESC';
-  
+
   console.log('Executing query:', query);
   console.log('With parameters:', params);
-  
+
   db.all(query, params, (err, topics) => {
     if (err) {
       console.error('Database error:', err);
       return res.status(500).json({ error: 'Failed to fetch topics: ' + err.message });
     }
-    
+
     try {
       // Parse opportunity_scores JSON for each topic
       topics = topics.map(topic => ({
         ...topic,
         opportunity_scores: JSON.parse(topic.opportunity_scores || '{}')
       }));
-      
+
       console.log('Found topics:', topics?.length || 0);
       res.json(topics || []);
     } catch (error) {
@@ -152,7 +152,7 @@ app.get('/api/topics', (req, res) => {
 
 app.get('/api/topics/trending', (req, res) => {
   const query = `
-    SELECT 
+    SELECT
       id,
       name as title,
       category,
@@ -162,7 +162,7 @@ app.get('/api/topics/trending', (req, res) => {
     ORDER BY growth_percentage DESC
     LIMIT 5
   `;
-  
+
   db.all(query, [], (err, topics) => {
     if (err) {
       console.error('Database error:', err);
@@ -174,13 +174,13 @@ app.get('/api/topics/trending', (req, res) => {
 
 app.get('/api/topics/:id', (req, res) => {
   const topicId = parseInt(req.params.id);
-  
+
   if (isNaN(topicId) || topicId <= 0) {
     return res.status(400).json({ error: 'Invalid topic ID' });
   }
-  
+
   const query = `
-    SELECT 
+    SELECT
       id,
       name as title,
       category,
@@ -194,17 +194,17 @@ app.get('/api/topics/:id', (req, res) => {
     FROM reddit_topics
     WHERE id = ?
   `;
-  
+
   db.get(query, [topicId], (err, topic) => {
     if (err) {
       console.error('Database error:', err);
       return res.status(500).json({ error: 'Failed to fetch topic details' });
     }
-    
+
     if (!topic) {
       return res.status(404).json({ error: `Topic with ID ${topicId} not found` });
     }
-    
+
     // Parse JSON strings back to arrays
     try {
       topic.trend_data = JSON.parse(topic.trend_data);
@@ -215,31 +215,92 @@ app.get('/api/topics/:id', (req, res) => {
       console.error('Error parsing JSON data:', parseError);
       return res.status(500).json({ error: 'Failed to parse topic data' });
     }
-    
+
     res.json(topic);
   });
 });
 
 app.get('/api/dashboard/stats', (req, res) => {
+  // Get date 30 days ago for growth calculations
+  const currentDate = new Date();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(currentDate.getDate() - 30);
+
+  const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+
+  // Main stats query with additional metrics
   const query = `
-    SELECT 
+    SELECT
       COUNT(DISTINCT id) as totalTopics,
       COUNT(DISTINCT CASE WHEN growth_percentage > 30 THEN id END) as trendingTopics,
       COUNT(DISTINCT category) as totalCategories,
-      AVG(growth_percentage) as averageGrowthRate
+      SUM(mention_count) as totalPosts,
+      COUNT(DISTINCT CASE WHEN json_extract(opportunity_scores, '$.total_score') >= 70 THEN id END) as totalOpportunities,
+      AVG(growth_percentage) as averageGrowthRate,
+      AVG(json_extract(engagement_metrics, '$.comments') * 100.0 /
+          CASE WHEN mention_count > 0 THEN mention_count ELSE 1 END) as averageEngagement
     FROM reddit_topics
   `;
-  
+
+  // Query to get stats from 30 days ago for growth comparison
+  const previousPeriodQuery = `
+    SELECT
+      COUNT(DISTINCT id) as prevTotalTopics,
+      SUM(mention_count) as prevTotalPosts,
+      COUNT(DISTINCT CASE WHEN json_extract(opportunity_scores, '$.total_score') >= 70 THEN id END) as prevTotalOpportunities,
+      AVG(json_extract(engagement_metrics, '$.comments') * 100.0 /
+          CASE WHEN mention_count > 0 THEN mention_count ELSE 1 END) as prevAverageEngagement
+    FROM reddit_topics
+    WHERE created_at <= date(?)
+  `;
+
+  // Execute main stats query
   db.get(query, [], (err, stats) => {
     if (err) {
       console.error('Database error:', err);
       return res.status(500).json({ error: 'Failed to fetch dashboard stats' });
     }
-    res.json({
-      totalTopics: stats.totalTopics || 0,
-      trendingTopics: stats.trendingTopics || 0,
-      totalCategories: stats.totalCategories || 0,
-      averageGrowthRate: stats.averageGrowthRate ? parseFloat(stats.averageGrowthRate.toFixed(1)) : 0
+
+    // Execute previous period query for growth calculations
+    db.get(previousPeriodQuery, [thirtyDaysAgoStr], (prevErr, prevStats) => {
+      if (prevErr) {
+        console.error('Database error for previous period:', prevErr);
+        // Continue with current stats even if previous period fails
+        prevStats = {
+          prevTotalTopics: 0,
+          prevTotalPosts: 0,
+          prevTotalOpportunities: 0,
+          prevAverageEngagement: 0
+        };
+      }
+
+      // Calculate growth percentages
+      const calculateGrowth = (current, previous) => {
+        if (!previous || previous === 0) return 0;
+        const growth = ((current - previous) / previous) * 100;
+        return parseFloat(growth.toFixed(1));
+      };
+
+      // Format the response with all metrics
+      const response = {
+        // Current metrics
+        totalTopics: stats.totalTopics || 0,
+        trendingTopics: stats.trendingTopics || 0,
+        totalCategories: stats.totalCategories || 0,
+        totalPosts: stats.totalPosts || 0,
+        totalOpportunities: stats.totalOpportunities || 0,
+        averageGrowthRate: stats.averageGrowthRate ? parseFloat(stats.averageGrowthRate.toFixed(1)) : 0,
+        averageEngagement: stats.averageEngagement ? parseFloat(stats.averageEngagement.toFixed(1)) : 0,
+
+        // Growth metrics
+        topicsGrowth: calculateGrowth(stats.totalTopics || 0, prevStats.prevTotalTopics || 0),
+        postsGrowth: calculateGrowth(stats.totalPosts || 0, prevStats.prevTotalPosts || 0),
+        opportunitiesGrowth: calculateGrowth(stats.totalOpportunities || 0, prevStats.prevTotalOpportunities || 0),
+        engagementGrowth: calculateGrowth(stats.averageEngagement || 0, prevStats.prevAverageEngagement || 0)
+      };
+
+      console.log('Dashboard stats response:', response);
+      res.json(response);
     });
   });
 });
@@ -250,7 +311,7 @@ app.get('/api/categories', (req, res) => {
     FROM reddit_topics
     ORDER BY category
   `;
-  
+
   db.all(query, [], (err, categories) => {
     if (err) {
       console.error('Database error:', err);
@@ -262,7 +323,7 @@ app.get('/api/categories', (req, res) => {
 
 app.get('/api/market-analysis', (req, res) => {
   const categoryDistributionQuery = `
-    SELECT 
+    SELECT
       category,
       COUNT(*) as count
     FROM reddit_topics
@@ -270,9 +331,9 @@ app.get('/api/market-analysis', (req, res) => {
     ORDER BY count DESC
     LIMIT 5
   `;
-  
+
   const growthTrendsQuery = `
-    SELECT 
+    SELECT
       json_group_array(json_object(
         'month', substr(json_extract(value, '$.month'), 6),
         'growth', json_extract(value, '$.mentions')
@@ -284,9 +345,9 @@ app.get('/api/market-analysis', (req, res) => {
     ORDER BY substr(json_extract(value, '$.month'), 1, 7) DESC
     LIMIT 6
   `;
-  
+
   const painPointsQuery = `
-    SELECT 
+    SELECT
       category,
       COUNT(json_extract(value, '$.text')) as painPoints
     FROM reddit_topics,
@@ -296,25 +357,25 @@ app.get('/api/market-analysis', (req, res) => {
     ORDER BY painPoints DESC
     LIMIT 5
   `;
-  
+
   db.all(categoryDistributionQuery, [], (err, categoryDistribution) => {
     if (err) {
       console.error('Database error:', err);
       return res.status(500).json({ error: 'Failed to fetch market analysis' });
     }
-    
+
     db.all(growthTrendsQuery, [], (err, growthTrends) => {
       if (err) {
         console.error('Database error:', err);
         return res.status(500).json({ error: 'Failed to fetch market analysis' });
       }
-      
+
       db.all(painPointsQuery, [], (err, painPointsByCategory) => {
         if (err) {
           console.error('Database error:', err);
           return res.status(500).json({ error: 'Failed to fetch market analysis' });
         }
-        
+
         res.json({
           categoryDistribution,
           growthTrends: JSON.parse(growthTrends[0]?.trends || '[]').map(trend => ({
@@ -330,11 +391,11 @@ app.get('/api/market-analysis', (req, res) => {
 
 app.get('/api/opportunities', (req, res) => {
   console.log('Received request for opportunities with query:', req.query);
-  
+
   const { minScore = 70, category } = req.query;
-  
+
   let query = `
-    SELECT 
+    SELECT
       id,
       name as title,
       category,
@@ -346,32 +407,32 @@ app.get('/api/opportunities', (req, res) => {
     FROM reddit_topics
     WHERE json_extract(opportunity_scores, '$.total_score') >= ?
   `;
-  
+
   const params = [minScore];
-  
+
   if (category && category !== 'all') {
     query += ' AND category = ?';
     params.push(category);
   }
-  
+
   query += ' ORDER BY json_extract(opportunity_scores, "$.total_score") DESC';
-  
+
   console.log('Executing query:', query);
   console.log('With parameters:', params);
-  
+
   db.all(query, params, (err, opportunities) => {
     if (err) {
       console.error('Database error:', err);
       return res.status(500).json({ error: 'Failed to fetch opportunities: ' + err.message });
     }
-    
+
     try {
       // Parse opportunity_scores JSON for each opportunity
       opportunities = opportunities.map(opportunity => ({
         ...opportunity,
         opportunity_scores: JSON.parse(opportunity.opportunity_scores || '{}')
       }));
-      
+
       console.log('Found opportunities:', opportunities?.length || 0);
       res.json(opportunities || []);
     } catch (error) {
@@ -383,70 +444,70 @@ app.get('/api/opportunities', (req, res) => {
 
 app.post('/api/ideas/submit', (req, res) => {
   console.log('Received idea submission:', req.body);
-  
-  const { 
-    title, 
-    description, 
-    category, 
-    target_audience, 
-    pain_points, 
-    features, 
-    competitor_urls, 
-    monetization_model, 
+
+  const {
+    title,
+    description,
+    category,
+    target_audience,
+    pain_points,
+    features,
+    competitor_urls,
+    monetization_model,
     estimated_budget,
-    submitter_email 
+    submitter_email
   } = req.body;
-  
+
   // Validate required fields
   if (!title || !description || !category) {
-    return res.status(400).json({ 
-      success: false, 
-      message: 'Title, description, and category are required' 
+    return res.status(400).json({
+      success: false,
+      message: 'Title, description, and category are required'
     });
   }
-  
+
   // Insert into database
   const query = `
     INSERT INTO user_submitted_ideas (
-      title, 
-      description, 
-      category, 
-      target_audience, 
-      pain_points, 
-      features, 
-      competitor_urls, 
-      monetization_model, 
+      title,
+      description,
+      category,
+      target_audience,
+      pain_points,
+      features,
+      competitor_urls,
+      monetization_model,
       estimated_budget,
       submitter_email,
       created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
   `;
-  
+
   db.run(
-    query, 
+    query,
     [
-      title, 
-      description, 
-      category, 
-      target_audience, 
-      JSON.stringify(pain_points || []), 
-      JSON.stringify(features || []), 
-      JSON.stringify(competitor_urls || []), 
-      monetization_model, 
+      title,
+      description,
+      category,
+      target_audience,
+      JSON.stringify(pain_points || []),
+      JSON.stringify(features || []),
+      JSON.stringify(competitor_urls || []),
+      monetization_model,
       estimated_budget || 0,
       submitter_email || ''
-    ], 
+    ],
     function(err) {
       if (err) {
         console.error('Database error:', err);
-        return res.status(500).json({ 
-          success: false, 
-          message: 'Failed to submit idea: ' + err.message 
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to submit idea: ' + err.message
         });
       }
-      
-      res.json({ 
-        success: true, 
+
+      res.json({
+        success: true,
         message: 'Idea submitted successfully!',
         id: this.lastID
       });

@@ -58,21 +58,23 @@ export interface OpportunityScores {
 }
 
 export interface DashboardStats {
+  // Core metrics
   totalTopics: number;
   trendingTopics: number;
   totalCategories: number;
+  totalPosts: number;
+  totalOpportunities: number;
   averageGrowthRate: number;
-  total_topics?: number;
-  total_mentions?: number;
-  avg_growth?: number;
+  averageEngagement: number;
+
+  // Growth metrics
+  topicsGrowth: number;
+  postsGrowth: number;
+  opportunitiesGrowth: number;
+  engagementGrowth: number;
+
+  // Optional backward compatibility fields
   top_categories?: any[];
-  topicsGrowth?: number;
-  totalPosts?: number;
-  postsGrowth?: number;
-  totalOpportunities?: number;
-  opportunitiesGrowth?: number;
-  averageEngagement?: number;
-  engagementGrowth?: number;
 }
 
 export interface FilterOptions {
@@ -116,4 +118,4 @@ export interface MarketAnalysisData {
   growthTrends: { month: string; growth: number }[];
   painPointsByCategory: CategoryStat[];
   monthlyGrowth?: { month: string; growth: number }[];
-} 
+}
